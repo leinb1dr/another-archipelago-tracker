@@ -30,7 +30,20 @@ test.describe("connection", () => {
 
     await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
-    await expect(page.getByText("Integration WS")).toBeVisible();
+    await expect(page.getByText("Pick Me Game")).toBeVisible();
+  });
+
+  test("registers slot with Connect and shows Connected snackbar", async ({ page }) => {
+    await page.goto("/");
+    await page.getByLabel("Host").fill("127.0.0.1");
+    await page.getByLabel("Port").fill("53087");
+    await page.getByRole("button", { name: "Connect" }).click();
+
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
+    await page.getByLabel("Slot name").fill("E2EPlayer");
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(page.getByText("Connected as E2EPlayer.")).toBeVisible();
   });
 
   /** No server on this port — expect refused / error quickly (not the integration server). */

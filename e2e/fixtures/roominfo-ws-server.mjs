@@ -1,6 +1,5 @@
 /**
- * Minimal HTTP + WebSocket server for e2e: GET /health, WebSocket sends one RoomInfo frame.
- * Playwright starts this alongside Vite so tests exercise a real WebSocket (no routeWebSocket mock).
+ * HTTP + WebSocket server for e2e: GET /health; first frame RoomInfo; on Connect, reply Connected.
  */
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
@@ -11,7 +10,7 @@ const roomInfoPacket = [
   {
     cmd: "RoomInfo",
     password: false,
-    games: ["Integration WS"],
+    games: ["Pick Me Game"],
     tags: ["E2E"],
     version: { major: 0, minor: 6, build: 7, class: "Version" },
     generator_version: { major: 0, minor: 6, build: 7, class: "Version" },
@@ -37,6 +36,38 @@ const wss = new WebSocketServer({ server });
 
 wss.on("connection", (socket) => {
   socket.send(JSON.stringify(roomInfoPacket));
+
+  socket.on("message", (raw) => {
+    try {
+      const data = JSON.parse(raw.toString());
+      if (!Array.isArray(data)) return;
+      const connect = data.find((p) => p?.cmd === "Connect");
+      if (!connect) return;
+      const name = typeof connect.name === "string" ? connect.name : "Player";
+      const connected = [
+        {
+          cmd: "Connected",
+          team: 0,
+          slot: 1,
+          players: [
+            {
+              team: 0,
+              slot: 1,
+              alias: name,
+              name,
+              class: "NetworkPlayer",
+            },
+          ],
+          missing_locations: [],
+          checked_locations: [],
+          hint_points: 0,
+        },
+      ];
+      socket.send(JSON.stringify(connected));
+    } catch {
+      /* ignore */
+    }
+  });
 });
 
 server.listen(PORT, "127.0.0.1", () => {

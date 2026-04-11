@@ -1,9 +1,11 @@
+import Alert from "@mui/material/Alert";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
+import Snackbar from "@mui/material/Snackbar";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   buildArchipelagoWsUrl,
   normalizeHost,
@@ -40,6 +42,14 @@ function App() {
   const [connecting, setConnecting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [room, setRoom] = useState<RoomInfo | null>(null);
+  const [sessionSocket, setSessionSocket] = useState<WebSocket | null>(null);
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      sessionSocket?.close();
+    };
+  }, [sessionSocket]);
 
   const handleConnect = useCallback(async () => {
     const he = validateHost(host);
@@ -52,8 +62,9 @@ function App() {
     setConnecting(true);
     try {
       const url = buildArchipelagoWsUrl(host, port);
-      const info = await connectAndAwaitRoomInfo(url);
-      setRoom(info);
+      const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
+      setRoom(nextRoom);
+      setSessionSocket(socket);
     } catch (e) {
       const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
       setFormError(msg);
@@ -72,8 +83,12 @@ function App() {
         </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ py: 4 }}>
-        {room ? (
-          <RoomInfoView room={room} />
+        {room && sessionSocket ? (
+          <RoomInfoView
+            room={room}
+            socket={sessionSocket}
+            onSlotConnected={(message) => setSnackbarMessage(message)}
+          />
         ) : (
           <ConnectionView
             host={host}
@@ -96,6 +111,22 @@ function App() {
           />
         )}
       </Container>
+
+      <Snackbar
+        open={Boolean(snackbarMessage)}
+        autoHideDuration={8000}
+        onClose={() => setSnackbarMessage(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbarMessage(null)}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

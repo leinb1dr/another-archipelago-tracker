@@ -5,11 +5,13 @@ import CardHeader from "@mui/material/CardHeader";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { useState } from "react";
 import type { RoomInfo } from "../protocol/roomInfo";
+import { RegisterSlotDialog } from "./RegisterSlotDialog";
 
 function formatVersion(v: { major: number; minor: number; build: number }): string {
   return `${v.major}.${v.minor}.${v.build}`;
@@ -17,9 +19,14 @@ function formatVersion(v: { major: number; minor: number; build: number }): stri
 
 export type RoomInfoViewProps = {
   room: RoomInfo;
+  socket: WebSocket;
+  onSlotConnected: (message: string) => void;
 };
 
-export function RoomInfoView({ room }: RoomInfoViewProps) {
+export function RoomInfoView({ room, socket, onSlotConnected }: RoomInfoViewProps) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
+
   const serverTime =
     typeof room.time === "number" && Number.isFinite(room.time)
       ? new Date(room.time * 1000).toLocaleString()
@@ -96,7 +103,7 @@ export function RoomInfoView({ room }: RoomInfoViewProps) {
           <Divider />
 
           <Typography variant="subtitle2" color="text.secondary">
-            Games ({room.games.length})
+            Games ({room.games.length}) — click a game to sign in
           </Typography>
           <Box
             sx={{
@@ -108,10 +115,16 @@ export function RoomInfoView({ room }: RoomInfoViewProps) {
             }}
           >
             <List dense disablePadding>
-              {room.games.map((name) => (
-                <ListItem key={name} disableGutters sx={{ px: 2 }}>
+              {room.games.map((name, index) => (
+                <ListItemButton
+                  key={`${index}-${name}`}
+                  onClick={() => {
+                    setSelectedGame(name);
+                    setDialogOpen(true);
+                  }}
+                >
                   <ListItemText primary={<Typography variant="body2">{name}</Typography>} />
-                </ListItem>
+                </ListItemButton>
               ))}
             </List>
           </Box>
@@ -126,6 +139,18 @@ export function RoomInfoView({ room }: RoomInfoViewProps) {
           ) : null}
         </Stack>
       </CardContent>
+
+      <RegisterSlotDialog
+        open={dialogOpen}
+        gameTitle={selectedGame}
+        socket={socket}
+        version={room.version}
+        onClose={() => {
+          setDialogOpen(false);
+          setSelectedGame(null);
+        }}
+        onConnected={onSlotConnected}
+      />
     </Card>
   );
 }

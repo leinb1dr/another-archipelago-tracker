@@ -12,14 +12,20 @@ export const CONNECT_TIMEOUT_MS = 15_000;
 
 export const CONNECTION_FAILED_MESSAGE = "Could not connect." as const;
 
+export type RoomSocketSession = {
+  room: RoomInfo;
+  socket: WebSocket;
+};
+
 /**
  * Opens a WebSocket, enforces {@link CONNECT_TIMEOUT_MS} for the initial handshake,
- * then reads the first text frame and parses `RoomInfo` from the Archipelago packet list.
+ * reads the first text frame as `RoomInfo`, and **keeps the socket open** for
+ * follow-up packets such as `Connect` / `Connected`.
  */
-export function connectAndAwaitRoomInfo(wssUrl: string): Promise<RoomInfo> {
+export function connectAndAwaitRoomInfo(url: string): Promise<RoomSocketSession> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const ws = new WebSocket(wssUrl);
+    const ws = new WebSocket(url);
 
     const timer = window.setTimeout(() => {
       if (settled) return;
@@ -40,19 +46,21 @@ export function connectAndAwaitRoomInfo(wssUrl: string): Promise<RoomInfo> {
       window.clearTimeout(timer);
     };
 
-    ws.onmessage = (ev) => {
+    const onFirstMessage = (ev: MessageEvent) => {
       if (settled) return;
       const raw = typeof ev.data === "string" ? ev.data : "";
       try {
         const room = parseRoomInfoFromFirstMessage(raw);
         settled = true;
         window.clearTimeout(timer);
-        ws.close();
-        resolve(room);
+        ws.removeEventListener("message", onFirstMessage);
+        resolve({ room, socket: ws });
       } catch {
         fail();
       }
     };
+
+    ws.addEventListener("message", onFirstMessage);
 
     ws.onerror = () => {
       fail();
