@@ -44,6 +44,8 @@ test.describe("connection", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page.getByText("Connected as E2EPlayer.")).toBeVisible();
+    await expect(page.getByText(/E2EPlayer · Pick Me Game/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
   });
 
   /** No server on this port — expect refused / error quickly (not the integration server). */

@@ -11,6 +11,7 @@ import { sendConnectAndAwaitOutcome } from "../connection/sendConnect";
 import {
   buildConnectPacket,
   findPlayerForSlot,
+  type SlotSession,
 } from "../protocol/connectPackets";
 import type { NetworkVersion } from "../protocol/roomInfo";
 
@@ -20,7 +21,7 @@ export type RegisterSlotDialogProps = {
   socket: WebSocket | null;
   version: NetworkVersion;
   onClose: () => void;
-  onConnected: (message: string) => void;
+  onConnected: (payload: { message: string; session: SlotSession }) => void;
 };
 
 export function RegisterSlotDialog({
@@ -82,7 +83,12 @@ export function RegisterSlotDialog({
       }
       const player = findPlayerForSlot(result.connected);
       const display = player?.alias ?? player?.name ?? trimmed;
-      onConnected(`Connected as ${display}.`);
+      const session: SlotSession = {
+        game: gameTitle,
+        displayName: display,
+        connected: result.connected,
+      };
+      onConnected({ message: `Connected as ${display}.`, session });
       resetFields();
       onClose();
     } catch (e) {

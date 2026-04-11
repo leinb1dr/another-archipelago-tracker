@@ -1,8 +1,10 @@
 import Alert from "@mui/material/Alert";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Snackbar from "@mui/material/Snackbar";
+import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import { useCallback, useEffect, useState } from "react";
@@ -16,6 +18,8 @@ import {
 } from "./connection/connectArchipelago";
 import { ConnectionView } from "./components/ConnectionView";
 import { RoomInfoView } from "./components/RoomInfoView";
+import { SessionStatusDialog } from "./components/SessionStatusDialog";
+import type { SlotSession } from "./protocol/connectPackets";
 import type { RoomInfo } from "./protocol/roomInfo";
 
 function validateHost(host: string): string {
@@ -43,6 +47,9 @@ function App() {
   const [formError, setFormError] = useState<string | null>(null);
   const [room, setRoom] = useState<RoomInfo | null>(null);
   const [sessionSocket, setSessionSocket] = useState<WebSocket | null>(null);
+  const [slotSession, setSlotSession] = useState<SlotSession | null>(null);
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [roomReconnecting, setRoomReconnecting] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,6 +70,7 @@ function App() {
     try {
       const url = buildArchipelagoWsUrl(host, port);
       const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
+      setSlotSession(null);
       setRoom(nextRoom);
       setSessionSocket(socket);
     } catch (e) {
@@ -73,6 +81,28 @@ function App() {
     }
   }, [host, port]);
 
+  const performSlotLogout = useCallback(async () => {
+    if (!sessionSocket) return;
+    setSessionDialogOpen(false);
+    setSlotSession(null);
+    setRoomReconnecting(true);
+    sessionSocket.close();
+    try {
+      const url = buildArchipelagoWsUrl(host, port);
+      const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
+      setRoom(nextRoom);
+      setSessionSocket(socket);
+      setSnackbarMessage("Reconnected to room. You can sign in to a slot when ready.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
+      setRoom(null);
+      setSessionSocket(null);
+      setFormError(msg);
+    } finally {
+      setRoomReconnecting(false);
+    }
+  }, [host, port, sessionSocket]);
+
   return (
     <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar position="static" elevation={1}>
@@ -80,6 +110,34 @@ function App() {
           <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
             Archipelago Tracker
           </Typography>
+          {slotSession ? (
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", maxWidth: "min(100%, 420px)" }}>
+              <Typography
+                variant="body2"
+                color="inherit"
+                sx={{
+                  opacity: 0.95,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: { xs: 140, sm: 360 },
+                }}
+                title={`${slotSession.displayName} · ${slotSession.game}`}
+              >
+                {slotSession.displayName} · {slotSession.game}
+              </Typography>
+              <Button
+                color="inherit"
+                variant="outlined"
+                size="small"
+                disabled={roomReconnecting}
+                onClick={() => setSessionDialogOpen(true)}
+                sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
+              >
+                Log out
+              </Button>
+            </Stack>
+          ) : null}
         </Toolbar>
       </AppBar>
       <Container maxWidth="md" sx={{ py: 4 }}>
@@ -87,7 +145,11 @@ function App() {
           <RoomInfoView
             room={room}
             socket={sessionSocket}
-            onSlotConnected={(message) => setSnackbarMessage(message)}
+            reconnecting={roomReconnecting}
+            onSlotConnected={({ message, session }) => {
+              setSnackbarMessage(message);
+              setSlotSession(session);
+            }}
           />
         ) : (
           <ConnectionView
@@ -127,6 +189,16 @@ function App() {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      {slotSession ? (
+        <SessionStatusDialog
+          open={sessionDialogOpen}
+          room={room}
+          slotSession={slotSession}
+          onClose={() => setSessionDialogOpen(false)}
+          onLogout={performSlotLogout}
+        />
+      ) : null}
     </Box>
   );
 }

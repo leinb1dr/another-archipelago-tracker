@@ -36,6 +36,13 @@ export interface ConnectedPacket {
   hint_points?: number;
 }
 
+/** Active tracker sign-in after a successful `Connect` / `Connected` handshake. */
+export type SlotSession = {
+  game: string;
+  displayName: string;
+  connected: ConnectedPacket;
+};
+
 export interface ConnectionRefusedPacket {
   cmd: "ConnectionRefused";
   errors?: string[];

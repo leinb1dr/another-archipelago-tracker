@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
+import LinearProgress from "@mui/material/LinearProgress";
 import CardContent from "@mui/material/CardContent";
 import CardHeader from "@mui/material/CardHeader";
 import Chip from "@mui/material/Chip";
@@ -10,6 +11,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
+import type { SlotSession } from "../protocol/connectPackets";
 import type { RoomInfo } from "../protocol/roomInfo";
 import { RegisterSlotDialog } from "./RegisterSlotDialog";
 
@@ -20,10 +22,16 @@ function formatVersion(v: { major: number; minor: number; build: number }): stri
 export type RoomInfoViewProps = {
   room: RoomInfo;
   socket: WebSocket;
-  onSlotConnected: (message: string) => void;
+  reconnecting?: boolean;
+  onSlotConnected: (payload: { message: string; session: SlotSession }) => void;
 };
 
-export function RoomInfoView({ room, socket, onSlotConnected }: RoomInfoViewProps) {
+export function RoomInfoView({
+  room,
+  socket,
+  reconnecting = false,
+  onSlotConnected,
+}: RoomInfoViewProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
 
@@ -39,7 +47,19 @@ export function RoomInfoView({ room, socket, onSlotConnected }: RoomInfoViewProp
   };
 
   return (
-    <Card variant="outlined">
+    <Card variant="outlined" sx={{ position: "relative", opacity: reconnecting ? 0.6 : 1 }}>
+      {reconnecting ? (
+        <LinearProgress
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            borderRadius: "4px 4px 0 0",
+            zIndex: 1,
+          }}
+        />
+      ) : null}
       <CardHeader
         title="Room info"
         subheader={`Seed: ${room.seed_name}`}
@@ -118,6 +138,7 @@ export function RoomInfoView({ room, socket, onSlotConnected }: RoomInfoViewProp
               {room.games.map((name, index) => (
                 <ListItemButton
                   key={`${index}-${name}`}
+                  disabled={reconnecting}
                   onClick={() => {
                     setSelectedGame(name);
                     setDialogOpen(true);
@@ -141,7 +162,7 @@ export function RoomInfoView({ room, socket, onSlotConnected }: RoomInfoViewProp
       </CardContent>
 
       <RegisterSlotDialog
-        open={dialogOpen}
+        open={dialogOpen && !reconnecting}
         gameTitle={selectedGame}
         socket={socket}
         version={room.version}
