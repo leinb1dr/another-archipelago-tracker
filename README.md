@@ -30,6 +30,22 @@ npm run dev
 - `npm run build` — typecheck and production build.
 - `npm run preview` — serve the production build locally.
 
+## Testing
+
+End-to-end tests use [Playwright](https://playwright.dev/). Install browsers once (Chromium is enough for the default project):
+
+```bash
+npx playwright install chromium
+```
+
+Run the suite (starts the Vite dev server automatically):
+
+```bash
+npm run test:e2e
+```
+
+Use `npm run test:e2e:ui` for the Playwright UI mode while debugging.
+
 ## Current scope
 
 Bootstrap only: Material-themed shell and project layout. WebSocket connection, authentication, and tracker views are planned follow-up work.
