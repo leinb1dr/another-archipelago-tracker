@@ -1,0 +1,39 @@
+# Archipelago Tracker
+
+Web client for connecting to an [Archipelago](https://github.com/ArchipelagoMW/Archipelago) multiworld server as a **tracker**: observe session state (for example checked and remaining locations) without driving in-game automation.
+
+## Stack
+
+- [TypeScript](https://www.typescriptlang.org/)
+- [React](https://react.dev/)
+- [Vite](https://vite.dev/)
+- [Material UI](https://mui.com/) (Material Design)
+
+## Protocol
+
+Archipelago uses a WebSocket protocol with JSON command packets. The authoritative specification is in the upstream repository:
+
+[Network protocol (Archipelago docs)](https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md)
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) (current LTS recommended)
+
+## Scripts
+
+```bash
+npm install
+npm run dev
+```
+
+- `npm run dev` — start the Vite dev server.
+- `npm run build` — typecheck and production build.
+- `npm run preview` — serve the production build locally.
+
+## Current scope
+
+Bootstrap only: Material-themed shell and project layout. WebSocket connection, authentication, and tracker views are planned follow-up work.
+
+## License
+
+To be determined.
