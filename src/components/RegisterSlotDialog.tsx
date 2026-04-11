@@ -87,6 +87,7 @@ export function RegisterSlotDialog({
         game: gameTitle,
         displayName: display,
         connected: result.connected,
+        connectBatchRest: result.connectBatchRest,
       };
       onConnected({ message: `Connected as ${display}.`, session });
       resetFields();

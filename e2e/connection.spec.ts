@@ -46,6 +46,18 @@ test.describe("connection", () => {
     await expect(page.getByText("Connected as E2EPlayer.")).toBeVisible();
     await expect(page.getByText(/E2EPlayer · Pick Me Game/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+
+    await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
+    await expect(page.getByText("50%")).toBeVisible();
+    await expect(page.getByText("1 checked · 1 remaining")).toBeVisible();
+    await expect(page.getByText("Hint points")).toBeVisible();
+    await expect(page.getByText("3", { exact: true })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Checks" }).click();
+    await expect(page.getByText("E2E Location Alpha")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Hints" }).click();
+    await expect(page.getByRole("tab", { name: "For you (2)" })).toBeVisible();
   });
 
   /** No server on this port — expect refused / error quickly (not the integration server). */

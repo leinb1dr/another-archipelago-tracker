@@ -19,7 +19,7 @@ export function sendConnectAndAwaitOutcome(
   ws: WebSocket,
   packet: ConnectPacket,
 ): Promise<
-  | { outcome: "connected"; connected: ConnectedPacket }
+  | { outcome: "connected"; connected: ConnectedPacket; connectBatchRest: unknown[] }
   | { outcome: "refused"; refused: ConnectionRefusedPacket }
 > {
   return new Promise((resolve, reject) => {
@@ -38,14 +38,17 @@ export function sendConnectAndAwaitOutcome(
       }
       if (!Array.isArray(data)) return;
 
-      for (const p of data) {
+      for (let i = 0; i < data.length; i++) {
+        const p = data[i];
         if (p === null || typeof p !== "object" || !("cmd" in p)) continue;
         const cmd = (p as { cmd?: string }).cmd;
         if (cmd === "Connected") {
           cleanup();
+          const rest = data.slice(i + 1).filter((x) => x !== null && typeof x === "object");
           resolve({
             outcome: "connected",
             connected: p as ConnectedPacket,
+            connectBatchRest: rest,
           });
           return;
         }

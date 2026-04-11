@@ -41,6 +41,8 @@ export type SlotSession = {
   game: string;
   displayName: string;
   connected: ConnectedPacket;
+  /** Other packets in the same WebSocket message as `Connected` (e.g. `DataPackage`). */
+  connectBatchRest?: unknown[];
 };
 
 export interface ConnectionRefusedPacket {

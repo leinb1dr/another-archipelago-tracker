@@ -19,6 +19,7 @@ import {
 import { ConnectionView } from "./components/ConnectionView";
 import { RoomInfoView } from "./components/RoomInfoView";
 import { SessionStatusDialog } from "./components/SessionStatusDialog";
+import { TrackerShell } from "./components/TrackerShell";
 import type { SlotSession } from "./protocol/connectPackets";
 import type { RoomInfo } from "./protocol/roomInfo";
 
@@ -142,15 +143,24 @@ function App() {
       </AppBar>
       <Container maxWidth="md" sx={{ py: 4 }}>
         {room && sessionSocket ? (
-          <RoomInfoView
-            room={room}
-            socket={sessionSocket}
-            reconnecting={roomReconnecting}
-            onSlotConnected={({ message, session }) => {
-              setSnackbarMessage(message);
-              setSlotSession(session);
-            }}
-          />
+          slotSession ? (
+            <TrackerShell
+              room={room}
+              socket={sessionSocket}
+              slotSession={slotSession}
+              reconnecting={roomReconnecting}
+            />
+          ) : (
+            <RoomInfoView
+              room={room}
+              socket={sessionSocket}
+              reconnecting={roomReconnecting}
+              onSlotConnected={({ message, session }) => {
+                setSnackbarMessage(message);
+                setSlotSession(session);
+              }}
+            />
+          )
         ) : (
           <ConnectionView
             host={host}

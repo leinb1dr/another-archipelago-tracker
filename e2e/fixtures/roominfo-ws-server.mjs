@@ -1,16 +1,19 @@
 /**
- * HTTP + WebSocket server for e2e: GET /health; first frame RoomInfo; on Connect, reply Connected.
+ * HTTP + WebSocket server for e2e: GET /health; first frame RoomInfo; Connect → Connected;
+ * GetDataPackage → DataPackage; Get → Retrieved (hints + location groups).
  */
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 
 const PORT = Number(process.env.ROOMINFO_WS_PORT ?? 53087);
 
+const GAME = "Pick Me Game";
+
 const roomInfoPacket = [
   {
     cmd: "RoomInfo",
     password: false,
-    games: ["Pick Me Game"],
+    games: [GAME],
     tags: ["E2E"],
     version: { major: 0, minor: 6, build: 7, class: "Version" },
     generator_version: { major: 0, minor: 6, build: 7, class: "Version" },
@@ -34,6 +37,63 @@ const server = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
+function dataPackageReply() {
+  return {
+    cmd: "DataPackage",
+    data: {
+      games: {
+        [GAME]: {
+          location_name_to_id: {
+            "E2E Location Alpha": 100,
+            "E2E Location Beta": 101,
+          },
+          item_name_to_id: {
+            "E2E Item": 200,
+            "Shared Trinket": 201,
+          },
+        },
+      },
+    },
+  };
+}
+
+function retrievedReply(keys) {
+  const out = {
+    cmd: "Retrieved",
+    keys,
+  };
+  const hintsKey = "_read_hints_0_1";
+  const groupsKey = `_read_location_name_groups_${GAME}`;
+  if (keys.includes(hintsKey)) {
+    out[hintsKey] = [
+      {
+        receiving_player: 1,
+        finding_player: 1,
+        location: 100,
+        item: 200,
+        found: false,
+        item_flags: 1,
+        status: 1,
+      },
+      {
+        receiving_player: 1,
+        finding_player: 1,
+        location: 101,
+        item: 201,
+        found: true,
+        status: 0,
+      },
+    ];
+  }
+  if (keys.includes(groupsKey)) {
+    out[groupsKey] = {
+      Dungeon: ["E2E Location Alpha"],
+      Field: ["E2E Location Beta"],
+    };
+  }
+  return out;
+}
+
 wss.on("connection", (socket) => {
   socket.send(JSON.stringify(roomInfoPacket));
 
@@ -41,29 +101,41 @@ wss.on("connection", (socket) => {
     try {
       const data = JSON.parse(raw.toString());
       if (!Array.isArray(data)) return;
-      const connect = data.find((p) => p?.cmd === "Connect");
-      if (!connect) return;
-      const name = typeof connect.name === "string" ? connect.name : "Player";
-      const connected = [
-        {
-          cmd: "Connected",
-          team: 0,
-          slot: 1,
-          players: [
-            {
-              team: 0,
-              slot: 1,
-              alias: name,
-              name,
-              class: "NetworkPlayer",
-            },
-          ],
-          missing_locations: [],
-          checked_locations: [],
-          hint_points: 0,
-        },
-      ];
-      socket.send(JSON.stringify(connected));
+      const reply = [];
+
+      for (const p of data) {
+        if (!p || typeof p !== "object") continue;
+        if (p.cmd === "Connect") {
+          const name = typeof p.name === "string" ? p.name : "Player";
+          reply.push({
+            cmd: "Connected",
+            team: 0,
+            slot: 1,
+            players: [
+              {
+                team: 0,
+                slot: 1,
+                alias: name,
+                name,
+                class: "NetworkPlayer",
+              },
+            ],
+            missing_locations: [100],
+            checked_locations: [101],
+            hint_points: 3,
+          });
+        }
+        if (p.cmd === "GetDataPackage") {
+          reply.push(dataPackageReply());
+        }
+        if (p.cmd === "Get" && Array.isArray(p.keys)) {
+          reply.push(retrievedReply(p.keys));
+        }
+      }
+
+      if (reply.length) {
+        socket.send(JSON.stringify(reply));
+      }
     } catch {
       /* ignore */
     }
