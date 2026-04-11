@@ -38,7 +38,7 @@ End-to-end tests use [Playwright](https://playwright.dev/). Install browsers onc
 npx playwright install chromium
 ```
 
-Run the suite (starts the Vite dev server automatically):
+Run the suite (starts the Vite dev server and a small local WebSocket server that sends `RoomInfo`, so connection tests hit a real WebSocket):
 
 ```bash
 npm run test:e2e

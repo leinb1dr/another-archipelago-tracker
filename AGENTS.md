@@ -29,6 +29,8 @@ Use **Material UI** with the existing `ThemeProvider` and patterns in `src/`. Ke
 
 The ecosystem lists [archipelago.js](https://www.npmjs.com/package/archipelago.js) (JavaScript/TypeScript) as a community client for the protocol. Evaluate it when adding a real connection versus a small custom WebSocket layer; either approach is acceptable if the behavior matches the official protocol.
 
-## Bootstrap scope
+## Connection UI and WebSocket
 
-Initial commits intentionally omit live WebSocket logic and full tracker UI. Add those in focused changes with clear connection and state-management boundaries.
+[`buildArchipelagoWsUrl`](src/connection/buildWsUrl.ts) uses **`wss://`** for non-loopback hosts (public Archipelago servers) and **`ws://`** for loopback (`localhost`, `127.0.0.1`, …) so local tooling can use a plain WebSocket server without TLS. The client opens a browser `WebSocket` and enforces **`CONNECT_TIMEOUT_MS`** (see [`src/connection/connectArchipelago.ts`](src/connection/connectArchipelago.ts)) for the initial handshake—long enough for real TLS to complete. The first text frame must parse as a JSON array containing **`RoomInfo`**. A failed open, transport error, or invalid first message surfaces as **“Could not connect.”**
+
+Playwright starts [`e2e/fixtures/roominfo-ws-server.mjs`](e2e/fixtures/roominfo-ws-server.mjs) alongside Vite; [`e2e/connection.spec.ts`](e2e/connection.spec.ts) connects to **`ws://127.0.0.1:53087`** and asserts the real `RoomInfo` payload (no `routeWebSocket` mock on that path). A separate test uses an unused port to assert the error state.
