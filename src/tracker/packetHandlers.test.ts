@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ConnectedPacket } from "../protocol/connectPackets";
 import type { RetrievedPacket } from "../protocol/serverPackets";
 import { locationNameGroupsStorageKey, readHintsStorageKey } from "../protocol/serverPackets";
-import { applyRetrieved, initTrackerState } from "./packetHandlers";
+import { applyReceivedItems, applyRetrieved, initTrackerState } from "./packetHandlers";
 
 function minimalConnected(overrides: Partial<ConnectedPacket> = {}): ConnectedPacket {
   return {
@@ -74,5 +74,76 @@ describe("applyRetrieved", () => {
       },
     }, game);
     expect(next.locationGroups).toEqual({ A: ["Loc One"] });
+  });
+});
+
+describe("applyReceivedItems", () => {
+  const item = (n: Partial<{ item: number; location: number; player: number; flags: number }>) => ({
+    item: 1,
+    location: 2,
+    player: 3,
+    flags: 0,
+    ...n,
+  });
+
+  it("replaces inventory when index is 0", () => {
+    let prev = initTrackerState(minimalConnected());
+    prev = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 0,
+      items: [item({ item: 10 })],
+    });
+    expect(prev.receivedItems).toEqual([item({ item: 10 })]);
+    expect(prev.receivedItemsSyncError).toBeNull();
+
+    prev = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 0,
+      items: [item({ item: 20 }), item({ item: 30 })],
+    });
+    expect(prev.receivedItems).toEqual([item({ item: 20 }), item({ item: 30 })]);
+    expect(prev.receivedItemsSyncError).toBeNull();
+  });
+
+  it("appends when index matches current length", () => {
+    let prev = initTrackerState(minimalConnected());
+    prev = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 0,
+      items: [item({ item: 1 })],
+    });
+    prev = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 1,
+      items: [item({ item: 2 })],
+    });
+    expect(prev.receivedItems).toEqual([item({ item: 1 }), item({ item: 2 })]);
+    expect(prev.receivedItemsSyncError).toBeNull();
+  });
+
+  it("sets sync error and keeps inventory on index mismatch", () => {
+    let prev = initTrackerState(minimalConnected());
+    prev = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 0,
+      items: [item({ item: 1 })],
+    });
+    prev = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 5,
+      items: [item({ item: 99 })],
+    });
+    expect(prev.receivedItems).toEqual([item({ item: 1 })]);
+    expect(prev.receivedItemsSyncError).toMatch(/index mismatch/);
+  });
+
+  it("ignores malformed entries in items array", () => {
+    const prev = initTrackerState(minimalConnected());
+    const next = applyReceivedItems(prev, {
+      cmd: "ReceivedItems",
+      index: 0,
+      items: [{ item: 1, location: 2, player: 3, flags: 0 }, null, "x", { item: "bad" }] as never[],
+    });
+    expect(next.receivedItems).toEqual([item({})]);
   });
 });

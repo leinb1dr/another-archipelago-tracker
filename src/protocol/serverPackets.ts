@@ -36,6 +36,23 @@ export interface SetReplyPacket {
   value: unknown;
 }
 
+/** https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#networkitem */
+export interface NetworkItem {
+  item: number;
+  location: number;
+  /** Slot of the world where the item was found (finder). */
+  player: number;
+  flags: number;
+}
+
+/** https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#receiveditems */
+export interface ReceivedItemsPacket {
+  cmd: "ReceivedItems";
+  /** Next empty slot in the receiving client's item list; `0` means full inventory replacement. */
+  index: number;
+  items: NetworkItem[];
+}
+
 /** https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#hint */
 export interface HintPacket {
   receiving_player: number;
@@ -78,6 +95,15 @@ export interface SetNotifyPacket {
   keys: string[];
 }
 
+/** Client → server: https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#updatehint */
+export interface UpdateHintPacket {
+  cmd: "UpdateHint";
+  /** Finding player's slot ID (`Hint.finding_player`). */
+  player: number;
+  location: number;
+  status: number;
+}
+
 export function buildGetDataPackagePacket(games: string[]): GetDataPackagePacket {
   return { cmd: "GetDataPackage", games: games.length ? games : undefined };
 }
@@ -88,6 +114,20 @@ export function buildGetPacket(keys: string[]): GetPacket {
 
 export function buildSetNotifyPacket(keys: string[]): SetNotifyPacket {
   return { cmd: "SetNotify", keys };
+}
+
+export function buildUpdateHintPacket(args: {
+  /** Finding player's slot ID (`Hint.finding_player`). */
+  player: number;
+  location: number;
+  status: number;
+}): UpdateHintPacket {
+  return {
+    cmd: "UpdateHint",
+    player: args.player,
+    location: args.location,
+    status: args.status,
+  };
 }
 
 export function readHintsStorageKey(team: number, slot: number): string {

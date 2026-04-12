@@ -3,6 +3,8 @@ import { slotGamesFromConnected } from "./slotGames";
 import type {
   DataPackagePacket,
   HintPacket,
+  NetworkItem,
+  ReceivedItemsPacket,
   RetrievedPacket,
   RoomUpdatePacket,
   SetReplyPacket,
@@ -31,6 +33,29 @@ function getRetrievedStorageValue(packet: RetrievedPacket, storageKey: string): 
   return undefined;
 }
 
+function parseNetworkItems(raw: unknown): NetworkItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: NetworkItem[] = [];
+  for (const el of raw) {
+    if (el === null || typeof el !== "object") continue;
+    const o = el as Record<string, unknown>;
+    if (
+      typeof o.item === "number" &&
+      typeof o.location === "number" &&
+      typeof o.player === "number" &&
+      typeof o.flags === "number"
+    ) {
+      out.push({
+        item: o.item,
+        location: o.location,
+        player: o.player,
+        flags: o.flags,
+      });
+    }
+  }
+  return out;
+}
+
 export type TrackerRuntimeState = {
   location: LocationTrackingState;
   mapsByGame: Record<string, IdNameMaps>;
@@ -42,6 +67,10 @@ export type TrackerRuntimeState = {
   team: number;
   slot: number;
   players: NetworkPlayer[];
+  /** Items queued for this slot (`ReceivedItems`), in server order. */
+  receivedItems: NetworkItem[];
+  /** Set when `ReceivedItems.index` does not match the expected next index. */
+  receivedItemsSyncError: string | null;
 };
 
 export function initTrackerState(connected: ConnectedPacket): TrackerRuntimeState {
@@ -55,6 +84,8 @@ export function initTrackerState(connected: ConnectedPacket): TrackerRuntimeStat
     team: connected.team,
     slot: connected.slot,
     players: connected.players ?? [],
+    receivedItems: [],
+    receivedItemsSyncError: null,
   };
 }
 
@@ -118,6 +149,35 @@ export function applySetReply(prev: TrackerRuntimeState, packet: SetReplyPacket)
   return prev;
 }
 
+export function applyReceivedItems(
+  prev: TrackerRuntimeState,
+  packet: ReceivedItemsPacket,
+): TrackerRuntimeState {
+  const items = parseNetworkItems(packet.items);
+  const index = packet.index;
+
+  if (index === 0) {
+    return {
+      ...prev,
+      receivedItems: items,
+      receivedItemsSyncError: null,
+    };
+  }
+
+  if (index === prev.receivedItems.length) {
+    return {
+      ...prev,
+      receivedItems: [...prev.receivedItems, ...items],
+      receivedItemsSyncError: null,
+    };
+  }
+
+  return {
+    ...prev,
+    receivedItemsSyncError: `ReceivedItems index mismatch: expected ${prev.receivedItems.length}, got ${index}.`,
+  };
+}
+
 export function processUnknownPacket(
   prev: TrackerRuntimeState,
   packet: unknown,
@@ -134,6 +194,8 @@ export function processUnknownPacket(
       return applyRetrieved(prev, packet as RetrievedPacket, gameName);
     case "SetReply":
       return applySetReply(prev, packet as SetReplyPacket);
+    case "ReceivedItems":
+      return applyReceivedItems(prev, packet as ReceivedItemsPacket);
     default:
       return prev;
   }

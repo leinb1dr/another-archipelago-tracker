@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { HINT_STATUS } from "../protocol/serverPackets";
 import type { HintPacket } from "../protocol/serverPackets";
 import {
+  canChangeHintStatus,
+  EDITABLE_HINT_STATUSES,
   hintStatusLabel,
   hintsForFindingPlayer,
   hintsForReceivingPlayer,
@@ -79,6 +81,34 @@ describe("hintStatusLabel and isPriorityHint", () => {
       status: HINT_STATUS.HINT_PRIORITY,
     };
     expect(isPriorityHint(h)).toBe(true);
+  });
+});
+
+describe("canChangeHintStatus", () => {
+  const base: HintPacket = {
+    receiving_player: 1,
+    finding_player: 2,
+    location: 1,
+    item: 1,
+    found: false,
+  };
+
+  it("allows receiver when status is not Found", () => {
+    expect(canChangeHintStatus({ ...base, status: HINT_STATUS.HINT_PRIORITY }, 1)).toBe(true);
+    expect(canChangeHintStatus({ ...base, status: undefined }, 1)).toBe(true);
+  });
+
+  it("denies non-receiver", () => {
+    expect(canChangeHintStatus({ ...base, status: HINT_STATUS.HINT_PRIORITY }, 2)).toBe(false);
+  });
+
+  it("denies Found status", () => {
+    expect(canChangeHintStatus({ ...base, status: HINT_STATUS.HINT_FOUND }, 1)).toBe(false);
+  });
+
+  it("editable list excludes Found", () => {
+    expect(EDITABLE_HINT_STATUSES).not.toContain(HINT_STATUS.HINT_FOUND);
+    expect(EDITABLE_HINT_STATUSES).toHaveLength(4);
   });
 });
 

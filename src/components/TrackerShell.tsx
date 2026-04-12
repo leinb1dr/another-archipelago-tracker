@@ -9,6 +9,7 @@ import { useTrackerSession } from "../tracker/useTrackerSession";
 import { ChecksView } from "./tracker/ChecksView";
 import { HintsView } from "./tracker/HintsView";
 import { OverallStatusView } from "./tracker/OverallStatusView";
+import { ReceivedChecksView } from "./tracker/ReceivedChecksView";
 
 export type TrackerShellProps = {
   room: RoomInfo;
@@ -44,6 +45,7 @@ export function TrackerShell({ room, socket, slotSession, reconnecting = false }
         <Tab label="Status" />
         <Tab label="Checks" />
         <Tab label="Hints" />
+        <Tab label="Received checks" />
       </Tabs>
       {!tracker ? (
         <LinearProgress />
@@ -51,7 +53,8 @@ export function TrackerShell({ room, socket, slotSession, reconnecting = false }
         <>
           {tab === 0 ? <OverallStatusView slotSession={slotSession} tracker={tracker} /> : null}
           {tab === 1 ? <ChecksView slotSession={slotSession} tracker={tracker} /> : null}
-          {tab === 2 ? <HintsView slotSession={slotSession} tracker={tracker} /> : null}
+          {tab === 2 ? <HintsView socket={socket} slotSession={slotSession} tracker={tracker} /> : null}
+          {tab === 3 ? <ReceivedChecksView slotSession={slotSession} tracker={tracker} /> : null}
         </>
       )}
     </Box>

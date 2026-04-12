@@ -1,3 +1,4 @@
+import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -18,11 +19,20 @@ import TableRow from "@mui/material/TableRow";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { sendArchipelagoPacket } from "../../connection/sendArchipelagoPacket";
 import type { SlotSession } from "../../protocol/connectPackets";
-import type { HintPacket } from "../../protocol/serverPackets";
+import {
+  buildGetPacket,
+  buildUpdateHintPacket,
+  HINT_STATUS,
+  type HintPacket,
+  readHintsStorageKey,
+} from "../../protocol/serverPackets";
 import type { TrackerRuntimeState } from "../../tracker/packetHandlers";
 import {
+  canChangeHintStatus,
+  EDITABLE_HINT_STATUSES,
   hintStatusLabel,
   hintsForFindingPlayer,
   hintsForReceivingPlayer,
@@ -31,9 +41,75 @@ import { gameForHintItem, gameForHintLocation } from "../../tracker/slotGames";
 import { playerAlias, resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
 
 export type HintsViewProps = {
+  socket: WebSocket;
   slotSession: SlotSession;
   tracker: TrackerRuntimeState;
 };
+
+function hintStatusRowKey(h: HintPacket): string {
+  return `${h.finding_player}:${h.location}:${h.item}`;
+}
+
+function HintStatusField({
+  h,
+  tracker,
+  socket,
+  statusBusyKey,
+  setStatusBusyKey,
+  setUpdateHintError,
+}: {
+  h: HintPacket;
+  tracker: TrackerRuntimeState;
+  socket: WebSocket;
+  statusBusyKey: string | null;
+  setStatusBusyKey: (k: string | null) => void;
+  setUpdateHintError: (s: string | null) => void;
+}) {
+  const slot = tracker.slot;
+  const team = tracker.team;
+  if (!canChangeHintStatus(h, slot)) {
+    return (
+      <Typography variant="body2" component="span">
+        {hintStatusLabel(h.status)}
+      </Typography>
+    );
+  }
+
+  const normalized = h.status ?? HINT_STATUS.HINT_UNSPECIFIED;
+  const selectValue = EDITABLE_HINT_STATUSES.includes(normalized)
+    ? normalized
+    : HINT_STATUS.HINT_UNSPECIFIED;
+  const anyBusy = statusBusyKey !== null;
+
+  const onChange = (next: number) => {
+    setUpdateHintError(null);
+    setStatusBusyKey(hintStatusRowKey(h));
+    sendArchipelagoPacket(
+      socket,
+      buildUpdateHintPacket({ player: h.finding_player, location: h.location, status: next }),
+    );
+    sendArchipelagoPacket(socket, buildGetPacket([readHintsStorageKey(team, slot)]));
+    window.setTimeout(() => setStatusBusyKey(null), 1200);
+  };
+
+  return (
+    <FormControl size="small" sx={{ minWidth: 150 }}>
+      <Select
+        value={selectValue}
+        disabled={anyBusy}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={`Hint status for location ${h.location}`}
+        renderValue={() => hintStatusLabel(h.status)}
+      >
+        {EDITABLE_HINT_STATUSES.map((s) => (
+          <MenuItem key={s} value={s}>
+            {hintStatusLabel(s)}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+}
 
 type FiltersSub = {
   item: string;
@@ -100,11 +176,37 @@ function hasActiveFiltersAll(f: FiltersAll): boolean {
   );
 }
 
-export function HintsView({ slotSession, tracker }: HintsViewProps) {
+export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
   const [tab, setTab] = useState(0);
   const [filtersSub, setFiltersSub] = useState<FiltersSub>(emptyFiltersSub);
   const [filtersAll, setFiltersAll] = useState<FiltersAll>(emptyFiltersAll);
+  const [statusBusyKey, setStatusBusyKey] = useState<string | null>(null);
+  const [updateHintError, setUpdateHintError] = useState<string | null>(null);
   const { hints, mapsByGame, slot, players, slotGames } = tracker;
+
+  useEffect(() => {
+    const onMsg = (ev: MessageEvent) => {
+      const raw = typeof ev.data === "string" ? ev.data : "";
+      let data: unknown;
+      try {
+        data = JSON.parse(raw) as unknown;
+      } catch {
+        return;
+      }
+      if (!Array.isArray(data)) return;
+      for (const p of data) {
+        if (p === null || typeof p !== "object" || !("cmd" in p)) continue;
+        if ((p as { cmd?: string }).cmd !== "InvalidPacket") continue;
+        const ip = p as { original_cmd?: string; text?: string };
+        if (ip.original_cmd === "UpdateHint" || String(ip.text ?? "").includes("UpdateHint")) {
+          setUpdateHintError(ip.text ?? "Could not update hint status.");
+          setStatusBusyKey(null);
+        }
+      }
+    };
+    socket.addEventListener("message", onMsg);
+    return () => socket.removeEventListener("message", onMsg);
+  }, [socket]);
 
   const receive = useMemo(
     () => hintsForReceivingPlayer(hints, slot).sort((a, b) => a.location - b.location),
@@ -271,6 +373,11 @@ export function HintsView({ slotSession, tracker }: HintsViewProps) {
           <Typography variant="body2" color="text.secondary">
             {helperText}
           </Typography>
+          {updateHintError ? (
+            <Alert severity="error" onClose={() => setUpdateHintError(null)} role="alert">
+              {updateHintError}
+            </Alert>
+          ) : null}
           {list.length === 0 ? (
             <Typography color="text.secondary">No hints in this list.</Typography>
           ) : (
@@ -532,7 +639,16 @@ export function HintsView({ slotSession, tracker }: HintsViewProps) {
                             <Chip size="small" label="No" variant="outlined" />
                           )}
                         </TableCell>
-                        <TableCell>{hintStatusLabel(h.status)}</TableCell>
+                        <TableCell>
+                          <HintStatusField
+                            h={h}
+                            tracker={tracker}
+                            socket={socket}
+                            statusBusyKey={statusBusyKey}
+                            setStatusBusyKey={setStatusBusyKey}
+                            setUpdateHintError={setUpdateHintError}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -577,7 +693,16 @@ export function HintsView({ slotSession, tracker }: HintsViewProps) {
                             <Chip size="small" label="Open" variant="outlined" />
                           )}
                         </TableCell>
-                        <TableCell>{hintStatusLabel(h.status)}</TableCell>
+                        <TableCell>
+                          <HintStatusField
+                            h={h}
+                            tracker={tracker}
+                            socket={socket}
+                            statusBusyKey={statusBusyKey}
+                            setStatusBusyKey={setStatusBusyKey}
+                            setUpdateHintError={setUpdateHintError}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

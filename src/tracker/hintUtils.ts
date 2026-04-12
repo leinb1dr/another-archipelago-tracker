@@ -62,6 +62,21 @@ export function isPriorityHint(h: HintPacket): boolean {
   return h.status === HINT_STATUS.HINT_PRIORITY;
 }
 
+/** Hint statuses the user may set via `UpdateHint` (excludes Found; server rejects HINT_FOUND). */
+export const EDITABLE_HINT_STATUSES: readonly number[] = [
+  HINT_STATUS.HINT_UNSPECIFIED,
+  HINT_STATUS.HINT_NO_PRIORITY,
+  HINT_STATUS.HINT_AVOID,
+  HINT_STATUS.HINT_PRIORITY,
+];
+
+/** Only the receiving player's client may update status; Found cannot be changed manually. */
+export function canChangeHintStatus(h: HintPacket, mySlot: number): boolean {
+  if (h.receiving_player !== mySlot) return false;
+  const s = h.status ?? HINT_STATUS.HINT_UNSPECIFIED;
+  return s !== HINT_STATUS.HINT_FOUND;
+}
+
 /** Progression flag (bit 0) from NetworkItem.flags */
 export function itemHasProgressionFlag(flags: number | undefined): boolean {
   if (flags === undefined) return false;

@@ -9,20 +9,12 @@ import {
   readHintsStorageKey,
 } from "../protocol/serverPackets";
 import type { PrintJsonPacket } from "../protocol/serverPackets";
+import { sendArchipelagoPacket } from "../connection/sendArchipelagoPacket";
 import {
   initTrackerState,
   processUnknownPacket,
   type TrackerRuntimeState,
 } from "./packetHandlers";
-
-function sendPacket(ws: WebSocket, packet: unknown) {
-  if (ws.readyState !== WebSocket.OPEN) return;
-  try {
-    ws.send(JSON.stringify([packet]));
-  } catch {
-    /* ignore */
-  }
-}
 
 export function useTrackerSession(options: {
   socket: WebSocket | null;
@@ -51,9 +43,9 @@ export function useTrackerSession(options: {
       roomInfo.games.length > 0 ? roomInfo.games : [session.game];
     const hintsKey = readHintsStorageKey(connected.team, connected.slot);
     const groupsKey = locationNameGroupsStorageKey(session.game);
-    sendPacket(ws, buildGetDataPackagePacket(games));
-    sendPacket(ws, buildGetPacket([hintsKey, groupsKey]));
-    sendPacket(ws, buildSetNotifyPacket([`hints_${connected.team}_${connected.slot}`]));
+    sendArchipelagoPacket(ws, buildGetDataPackagePacket(games));
+    sendArchipelagoPacket(ws, buildGetPacket([hintsKey, groupsKey]));
+    sendArchipelagoPacket(ws, buildSetNotifyPacket([`hints_${connected.team}_${connected.slot}`]));
   }, []);
 
   useEffect(() => {
@@ -89,7 +81,10 @@ export function useTrackerSession(options: {
         if (cmd === "PrintJSON") {
           const pj = p as PrintJsonPacket;
           if (pj.type === "Hint") {
-            sendPacket(socket, buildGetPacket([readHintsStorageKey(slotSession.connected.team, slotSession.connected.slot)]));
+            sendArchipelagoPacket(
+              socket,
+              buildGetPacket([readHintsStorageKey(slotSession.connected.team, slotSession.connected.slot)]),
+            );
           }
           continue;
         }
@@ -106,7 +101,7 @@ export function useTrackerSession(options: {
       const hk = readHintsStorageKey(slotSession.connected.team, slotSession.connected.slot);
       deferredHintsGetRef.current = setTimeout(() => {
         deferredHintsGetRef.current = null;
-        sendPacket(socket, buildGetPacket([hk]));
+        sendArchipelagoPacket(socket, buildGetPacket([hk]));
       }, 400);
     }
     return () => {

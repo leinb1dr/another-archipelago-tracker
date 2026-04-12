@@ -129,6 +129,18 @@ wss.on("connection", (socket) => {
               },
             },
           });
+          reply.push({
+            cmd: "ReceivedItems",
+            index: 0,
+            items: [
+              {
+                item: 201,
+                location: 100,
+                player: 1,
+                flags: 0,
+              },
+            ],
+          });
         }
         if (p.cmd === "GetDataPackage") {
           reply.push(dataPackageReply());

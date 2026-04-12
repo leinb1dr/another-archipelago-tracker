@@ -58,7 +58,7 @@ test.describe("connection", () => {
     await expect(page.getByText("Hint points")).toBeVisible();
     await expect(page.getByText("3", { exact: true })).toBeVisible();
 
-    await page.getByRole("tab", { name: "Checks" }).click();
+    await page.getByRole("tab", { name: "Checks", exact: true }).click();
     await expect(page.getByText("E2E Location Alpha")).toBeVisible();
 
     await page.getByRole("tab", { name: "Hints" }).click();
@@ -83,6 +83,13 @@ test.describe("connection", () => {
     await page.getByRole("tab", { name: "All (2)" }).click();
     await expect(page.getByRole("columnheader", { name: "Hint status" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Priority" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Received checks" }).click();
+    await expect(page.getByRole("heading", { name: "Received checks", level: 2 })).toBeVisible();
+    await expect(page.getByText(/1 item received/)).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Shared Trinket" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "E2E Location Alpha" })).toBeVisible();
+    await expect(page.getByText("E2E Location Beta")).toBeVisible();
 
     assertNoPageErrors();
   });
