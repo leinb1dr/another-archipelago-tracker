@@ -166,7 +166,11 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
   }, [scoutingLocationId, scoutedLocations]);
 
   const receivedRows = useMemo(() => {
-    return receivedItems.map((ni, index) => {
+    return receivedItems.map((rec, index) => {
+      const ni = rec.item;
+      const seen = new Date(rec.firstSeenAt);
+      const dateLabel = seen.toLocaleDateString();
+      const timeLabel = seen.toLocaleTimeString();
       const finderGame = gameForHintLocation(slotGames, ni.player);
       const itemLabel =
         ni.item <= 0
@@ -177,7 +181,7 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
           ? formatNetworkId(ni.location)
           : resolveLocationName(mapsByGame, finderGame ?? slotSession.game, ni.location);
       const fromLabel = playerAlias(players, ni.player);
-      return { index, itemLabel, locLabel, fromLabel, raw: ni };
+      return { index, itemLabel, locLabel, fromLabel, dateLabel, timeLabel, raw: ni };
     });
   }, [receivedItems, mapsByGame, players, slotGames, slotSession.game]);
 
@@ -273,10 +277,12 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
                 </Typography>
               ) : (
                 <TableContainer component={Paper} variant="outlined">
-                  <Table size="small" aria-label="Items received from other worlds">
+                  <Table size="small" aria-label="Items received from other worlds with client first-seen date and time">
                     <TableHead>
                       <TableRow>
                         <TableCell>#</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Time</TableCell>
                         <TableCell>Item</TableCell>
                         <TableCell>From</TableCell>
                         <TableCell>Location</TableCell>
@@ -286,6 +292,8 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
                       {filteredReceived.map((r) => (
                         <TableRow key={`${r.index}-${r.raw.item}-${r.raw.location}-${r.raw.player}`}>
                           <TableCell>{r.index + 1}</TableCell>
+                          <TableCell>{r.dateLabel}</TableCell>
+                          <TableCell>{r.timeLabel}</TableCell>
                           <TableCell>{r.itemLabel}</TableCell>
                           <TableCell>{r.fromLabel}</TableCell>
                           <TableCell>{r.locLabel}</TableCell>

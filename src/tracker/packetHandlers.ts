@@ -57,6 +57,17 @@ function parseNetworkItems(raw: unknown): NetworkItem[] {
   return out;
 }
 
+/** One inventory row from `ReceivedItems` plus when this client first stored it. */
+export type ReceivedItemRecord = {
+  item: NetworkItem;
+  /** Milliseconds since Unix epoch when this client first recorded this row. */
+  firstSeenAt: number;
+};
+
+function wrapReceivedItems(items: NetworkItem[], now: number): ReceivedItemRecord[] {
+  return items.map((item) => ({ item, firstSeenAt: now }));
+}
+
 export type TrackerRuntimeState = {
   location: LocationTrackingState;
   mapsByGame: Record<string, IdNameMaps>;
@@ -69,7 +80,7 @@ export type TrackerRuntimeState = {
   slot: number;
   players: NetworkPlayer[];
   /** Items queued for this slot (`ReceivedItems`), in server order. */
-  receivedItems: NetworkItem[];
+  receivedItems: ReceivedItemRecord[];
   /** Set when `ReceivedItems.index` does not match the expected next index. */
   receivedItemsSyncError: string | null;
   /** Location id → items revealed by `LocationInfo` (from LocationScouts). */
@@ -159,11 +170,12 @@ export function applyReceivedItems(
 ): TrackerRuntimeState {
   const items = parseNetworkItems(packet.items);
   const index = packet.index;
+  const now = Date.now();
 
   if (index === 0) {
     return {
       ...prev,
-      receivedItems: items,
+      receivedItems: wrapReceivedItems(items, now),
       receivedItemsSyncError: null,
     };
   }
@@ -171,7 +183,7 @@ export function applyReceivedItems(
   if (index === prev.receivedItems.length) {
     return {
       ...prev,
-      receivedItems: [...prev.receivedItems, ...items],
+      receivedItems: [...prev.receivedItems, ...wrapReceivedItems(items, now)],
       receivedItemsSyncError: null,
     };
   }

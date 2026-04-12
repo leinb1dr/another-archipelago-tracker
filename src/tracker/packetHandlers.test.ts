@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectedPacket } from "../protocol/connectPackets";
 import type { RetrievedPacket } from "../protocol/serverPackets";
 import { locationNameGroupsStorageKey, readHintsStorageKey } from "../protocol/serverPackets";
@@ -86,42 +86,64 @@ describe("applyReceivedItems", () => {
     ...n,
   });
 
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-06-01T10:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("replaces inventory when index is 0", () => {
+    const ts1 = Date.now();
     let prev = initTrackerState(minimalConnected());
     prev = applyReceivedItems(prev, {
       cmd: "ReceivedItems",
       index: 0,
       items: [item({ item: 10 })],
     });
-    expect(prev.receivedItems).toEqual([item({ item: 10 })]);
+    expect(prev.receivedItems).toEqual([{ item: item({ item: 10 }), firstSeenAt: ts1 }]);
     expect(prev.receivedItemsSyncError).toBeNull();
 
+    vi.setSystemTime(new Date("2024-06-01T12:00:00.000Z"));
+    const ts2 = Date.now();
     prev = applyReceivedItems(prev, {
       cmd: "ReceivedItems",
       index: 0,
       items: [item({ item: 20 }), item({ item: 30 })],
     });
-    expect(prev.receivedItems).toEqual([item({ item: 20 }), item({ item: 30 })]);
+    expect(prev.receivedItems).toEqual([
+      { item: item({ item: 20 }), firstSeenAt: ts2 },
+      { item: item({ item: 30 }), firstSeenAt: ts2 },
+    ]);
     expect(prev.receivedItemsSyncError).toBeNull();
   });
 
   it("appends when index matches current length", () => {
+    const ts1 = Date.now();
     let prev = initTrackerState(minimalConnected());
     prev = applyReceivedItems(prev, {
       cmd: "ReceivedItems",
       index: 0,
       items: [item({ item: 1 })],
     });
+    vi.setSystemTime(new Date("2024-06-01T11:00:00.000Z"));
+    const ts2 = Date.now();
     prev = applyReceivedItems(prev, {
       cmd: "ReceivedItems",
       index: 1,
       items: [item({ item: 2 })],
     });
-    expect(prev.receivedItems).toEqual([item({ item: 1 }), item({ item: 2 })]);
+    expect(prev.receivedItems).toEqual([
+      { item: item({ item: 1 }), firstSeenAt: ts1 },
+      { item: item({ item: 2 }), firstSeenAt: ts2 },
+    ]);
     expect(prev.receivedItemsSyncError).toBeNull();
   });
 
   it("sets sync error and keeps inventory on index mismatch", () => {
+    const ts1 = Date.now();
     let prev = initTrackerState(minimalConnected());
     prev = applyReceivedItems(prev, {
       cmd: "ReceivedItems",
@@ -133,18 +155,19 @@ describe("applyReceivedItems", () => {
       index: 5,
       items: [item({ item: 99 })],
     });
-    expect(prev.receivedItems).toEqual([item({ item: 1 })]);
+    expect(prev.receivedItems).toEqual([{ item: item({ item: 1 }), firstSeenAt: ts1 }]);
     expect(prev.receivedItemsSyncError).toMatch(/index mismatch/);
   });
 
   it("ignores malformed entries in items array", () => {
+    const ts1 = Date.now();
     const prev = initTrackerState(minimalConnected());
     const next = applyReceivedItems(prev, {
       cmd: "ReceivedItems",
       index: 0,
       items: [{ item: 1, location: 2, player: 3, flags: 0 }, null, "x", { item: "bad" }] as never[],
     });
-    expect(next.receivedItems).toEqual([item({})]);
+    expect(next.receivedItems).toEqual([{ item: item({}), firstSeenAt: ts1 }]);
   });
 });
 
