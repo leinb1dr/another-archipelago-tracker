@@ -15,6 +15,11 @@ import {
   processUnknownPacket,
   type TrackerRuntimeState,
 } from "./packetHandlers";
+import { hintStableKey } from "./hintUtils";
+import {
+  hintLastVisitStorageKey,
+  saveHintKeysForNextVisit,
+} from "./hintLastVisitStorage";
 import {
   filterScoutedToValidLocations,
   loadScoutedLocations,
@@ -35,6 +40,7 @@ export function useTrackerSession(options: {
   const [protocolError, setProtocolError] = useState<string | null>(null);
   const sessionKeyRef = useRef<string>("");
   const deferredHintsGetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trackerRef = useRef<TrackerRuntimeState | null>(null);
 
   const bootstrapSession = useCallback((ws: WebSocket, session: SlotSession, roomInfo: RoomInfo) => {
     const connected = session.connected;
@@ -127,6 +133,25 @@ export function useTrackerSession(options: {
       socket.removeEventListener("message", onMessage);
     };
   }, [socket, slotSession, room, bootstrapSession]);
+
+  trackerRef.current = tracker;
+
+  useEffect(() => {
+    if (!room || !slotSession) return;
+    const storageKey = hintLastVisitStorageKey(
+      room.seed_name,
+      slotSession.connected.team,
+      slotSession.connected.slot,
+    );
+    return () => {
+      const t = trackerRef.current;
+      if (!t) return;
+      saveHintKeysForNextVisit(
+        storageKey,
+        t.hints.map((h) => hintStableKey(h)),
+      );
+    };
+  }, [room, slotSession]);
 
   useEffect(() => {
     if (!tracker || !slotSession || !room) return;

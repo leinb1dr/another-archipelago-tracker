@@ -4,11 +4,13 @@ import type { HintPacket } from "../protocol/serverPackets";
 import {
   canChangeHintStatus,
   EDITABLE_HINT_STATUSES,
+  hintStableKey,
   hintStatusChipColor,
   hintStatusChips,
   hintStatusLabel,
   hintsForFindingPlayer,
   hintsForReceivingPlayer,
+  isOpenPriorityOrProgressionHintForOthers,
   isPriorityHint,
   itemClassificationChipLabels,
   itemClassificationChipSpecs,
@@ -199,5 +201,112 @@ describe("hint filters", () => {
   it("hintsForFindingPlayer", () => {
     expect(hintsForFindingPlayer(sample, 1)).toHaveLength(1);
     expect(hintsForFindingPlayer(sample, 1)[0].location).toBe(2);
+  });
+});
+
+describe("hintStableKey", () => {
+  it("concatenates the four ids", () => {
+    const h: HintPacket = {
+      receiving_player: 2,
+      finding_player: 1,
+      location: 10,
+      item: 20,
+      found: false,
+    };
+    expect(hintStableKey(h)).toBe("2:1:10:20");
+  });
+});
+
+describe("isOpenPriorityOrProgressionHintForOthers", () => {
+  const mySlot = 1;
+  const base = (o: Partial<HintPacket> & Pick<HintPacket, "receiving_player" | "finding_player" | "location" | "item">): HintPacket => ({
+    receiving_player: o.receiving_player,
+    finding_player: o.finding_player,
+    location: o.location,
+    item: o.item,
+    found: o.found ?? false,
+    status: o.status,
+    item_flags: o.item_flags,
+  });
+
+  it("is true for finder self, other receiver, unfound, priority status", () => {
+    const h = base({
+      receiving_player: 2,
+      finding_player: mySlot,
+      location: 1,
+      item: 1,
+      status: HINT_STATUS.HINT_PRIORITY,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(true);
+  });
+
+  it("is true for progression flag without priority status", () => {
+    const h = base({
+      receiving_player: 2,
+      finding_player: mySlot,
+      location: 1,
+      item: 1,
+      status: HINT_STATUS.HINT_UNSPECIFIED,
+      item_flags: 0b001,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(true);
+  });
+
+  it("is true when both priority and progression", () => {
+    const h = base({
+      receiving_player: 2,
+      finding_player: mySlot,
+      location: 1,
+      item: 1,
+      status: HINT_STATUS.HINT_PRIORITY,
+      item_flags: 0b001,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(true);
+  });
+
+  it("is false when wrong finder", () => {
+    const h = base({
+      receiving_player: 2,
+      finding_player: 3,
+      location: 1,
+      item: 1,
+      status: HINT_STATUS.HINT_PRIORITY,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(false);
+  });
+
+  it("is false when receiver is self", () => {
+    const h = base({
+      receiving_player: mySlot,
+      finding_player: mySlot,
+      location: 1,
+      item: 1,
+      status: HINT_STATUS.HINT_PRIORITY,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(false);
+  });
+
+  it("is false when found", () => {
+    const h = base({
+      receiving_player: 2,
+      finding_player: mySlot,
+      location: 1,
+      item: 1,
+      found: true,
+      status: HINT_STATUS.HINT_PRIORITY,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(false);
+  });
+
+  it("is false when neither priority nor progression", () => {
+    const h = base({
+      receiving_player: 2,
+      finding_player: mySlot,
+      location: 1,
+      item: 1,
+      status: HINT_STATUS.HINT_NO_PRIORITY,
+      item_flags: 0b010,
+    });
+    expect(isOpenPriorityOrProgressionHintForOthers(h, mySlot)).toBe(false);
   });
 });

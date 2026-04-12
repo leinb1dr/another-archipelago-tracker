@@ -62,6 +62,22 @@ export function isPriorityHint(h: HintPacket): boolean {
   return h.status === HINT_STATUS.HINT_PRIORITY;
 }
 
+/** Stable id for a hint row (storage / diff). */
+export function hintStableKey(h: HintPacket): string {
+  return `${h.receiving_player}:${h.finding_player}:${h.location}:${h.item}`;
+}
+
+/**
+ * Unfound location in your world for another player's item, when the hint is priority
+ * and/or the item is classified progression.
+ */
+export function isOpenPriorityOrProgressionHintForOthers(h: HintPacket, mySlot: number): boolean {
+  if (h.found) return false;
+  if (h.finding_player !== mySlot) return false;
+  if (h.receiving_player === mySlot) return false;
+  return isPriorityHint(h) || itemHasProgressionFlag(h.item_flags);
+}
+
 /** Hint statuses the user may set via `UpdateHint` (excludes Found; server rejects HINT_FOUND). */
 export const EDITABLE_HINT_STATUSES: readonly number[] = [
   HINT_STATUS.HINT_UNSPECIFIED,

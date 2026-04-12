@@ -49,7 +49,7 @@ export function TrackerShell({ room, socket, slotSession, reconnecting = false }
         <LinearProgress />
       ) : (
         <>
-          {tab === 0 ? <OverallStatusView slotSession={slotSession} tracker={tracker} /> : null}
+          {tab === 0 ? <OverallStatusView room={room} slotSession={slotSession} tracker={tracker} /> : null}
           {tab === 1 ? <ChecksView socket={socket} slotSession={slotSession} tracker={tracker} /> : null}
           {tab === 2 ? <HintsView socket={socket} slotSession={slotSession} tracker={tracker} /> : null}
         </>

@@ -1,3 +1,5 @@
+import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardHeader from "@mui/material/CardHeader";
@@ -6,25 +8,117 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { useMemo } from "react";
 import type { SlotSession } from "../../protocol/connectPackets";
+import type { RoomInfo } from "../../protocol/roomInfo";
+import type { HintPacket } from "../../protocol/serverPackets";
 import { completionRatio } from "../../tracker/locationState";
 import type { TrackerRuntimeState } from "../../tracker/packetHandlers";
-import { isPriorityHint } from "../../tracker/hintUtils";
+import {
+  hintStableKey,
+  isOpenPriorityOrProgressionHintForOthers,
+  isPriorityHint,
+  itemHasProgressionFlag,
+} from "../../tracker/hintUtils";
+import { hintLastVisitStorageKey, loadHintKeysFromLastVisit } from "../../tracker/hintLastVisitStorage";
 import { resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
 import { gameForHintItem, gameForHintLocation } from "../../tracker/slotGames";
 
 export type OverallStatusViewProps = {
+  room: RoomInfo;
   slotSession: SlotSession;
   tracker: TrackerRuntimeState;
 };
 
-export function OverallStatusView({ slotSession, tracker }: OverallStatusViewProps) {
+function sortHintsByLocationItem(a: HintPacket, b: HintPacket): number {
+  return a.location - b.location || a.item - b.item;
+}
+
+export function OverallStatusView({ room, slotSession, tracker }: OverallStatusViewProps) {
   const { location, mapsByGame, hints, slotGames } = tracker;
   const maps = mapsByGame[slotSession.game];
   const pct = completionRatio(location);
   const pctLabel = pct === null ? "—" : `${Math.round(pct * 1000) / 10}%`;
 
-  const priorityEntries = hints.filter((h) => isPriorityHint(h) && !h.found);
+  const mySlot = tracker.slot;
+
+  const priorityEntries = useMemo(
+    () => hints.filter((h) => isOpenPriorityOrProgressionHintForOthers(h, mySlot)).sort(sortHintsByLocationItem),
+    [hints, mySlot],
+  );
+
+  const { hasHintBaseline, newHintEntries } = useMemo(() => {
+    const raw = loadHintKeysFromLastVisit(
+      hintLastVisitStorageKey(room.seed_name, slotSession.connected.team, slotSession.connected.slot),
+    );
+    if (raw === null) {
+      return { hasHintBaseline: false, newHintEntries: [] as HintPacket[] };
+    }
+    const baseline = new Set(raw);
+    const next = hints.filter((h) => !baseline.has(hintStableKey(h))).sort(sortHintsByLocationItem);
+    return { hasHintBaseline: true, newHintEntries: next };
+  }, [hints, room.seed_name, slotSession.connected.team, slotSession.connected.slot]);
+
+  const renderHintList = (entries: HintPacket[], showKindChips: boolean) => {
+    if (!maps) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Loading data package…
+        </Typography>
+      );
+    }
+    if (entries.length === 0) {
+      return null;
+    }
+    return (
+      <List dense disablePadding>
+        {entries.slice(0, 12).map((h) => (
+          <ListItem key={hintStableKey(h)} disableGutters sx={{ py: 0.25 }}>
+            <ListItemText
+              primary={
+                showKindChips ? (
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}>
+                    <Typography component="span" variant="body2">
+                      {resolveItemName(
+                        mapsByGame,
+                        h.item,
+                        gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                      )}
+                    </Typography>
+                    {isPriorityHint(h) ? (
+                      <Chip label="Priority" size="small" variant="outlined" color="success" />
+                    ) : null}
+                    {itemHasProgressionFlag(h.item_flags) ? (
+                      <Chip
+                        label="Progression"
+                        size="small"
+                        variant="outlined"
+                        sx={{
+                          borderColor: "#7b1fa2",
+                          color: "#7b1fa2",
+                        }}
+                      />
+                    ) : null}
+                  </Box>
+                ) : (
+                  resolveItemName(
+                    mapsByGame,
+                    h.item,
+                    gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                  )
+                )
+              }
+              secondary={resolveLocationName(
+                mapsByGame,
+                gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                h.location,
+              )}
+            />
+          </ListItem>
+        ))}
+      </List>
+    );
+  };
 
   return (
     <Card variant="outlined">
@@ -57,7 +151,11 @@ export function OverallStatusView({ slotSession, tracker }: OverallStatusViewPro
           </Stack>
           <Stack spacing={0.5}>
             <Typography variant="subtitle2" color="text.secondary">
-              Open priority hints
+              Open priority / progression
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              In your world for other players — unfound checks where the hint is priority and/or the item is
+              progression.
             </Typography>
             {!maps ? (
               <Typography variant="body2" color="text.secondary">
@@ -65,27 +163,30 @@ export function OverallStatusView({ slotSession, tracker }: OverallStatusViewPro
               </Typography>
             ) : priorityEntries.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                No unfound priority hints.
+                None right now.
               </Typography>
             ) : (
-              <List dense disablePadding>
-                {priorityEntries.slice(0, 12).map((h, i) => (
-                  <ListItem key={`${h.location}-${h.item}-${i}`} disableGutters sx={{ py: 0.25 }}>
-                    <ListItemText
-                      primary={resolveItemName(
-                        mapsByGame,
-                        h.item,
-                        gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
-                      )}
-                      secondary={resolveLocationName(
-                        mapsByGame,
-                        gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
-                        h.location,
-                      )}
-                    />
-                  </ListItem>
-                ))}
-              </List>
+              renderHintList(priorityEntries, true)
+            )}
+          </Stack>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2" color="text.secondary">
+              New hints since last visit
+            </Typography>
+            {!hasHintBaseline ? (
+              <Typography variant="body2" color="text.secondary">
+                New hints will be listed here after you disconnect and sign in again.
+              </Typography>
+            ) : !maps ? (
+              <Typography variant="body2" color="text.secondary">
+                Loading data package…
+              </Typography>
+            ) : newHintEntries.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No new hints since your last visit.
+              </Typography>
+            ) : (
+              renderHintList(newHintEntries, false)
             )}
           </Stack>
         </Stack>
