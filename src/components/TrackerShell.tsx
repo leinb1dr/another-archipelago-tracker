@@ -5,6 +5,7 @@ import Tabs from "@mui/material/Tabs";
 import { useState } from "react";
 import type { SlotSession } from "../protocol/connectPackets";
 import type { RoomInfo } from "../protocol/roomInfo";
+import { useNotifyNewCheckedLocations } from "../tracker/useNotifyNewCheckedLocations";
 import { useTrackerSession } from "../tracker/useTrackerSession";
 import { ChecksView } from "./tracker/ChecksView";
 import { HintsView } from "./tracker/HintsView";
@@ -15,11 +16,20 @@ export type TrackerShellProps = {
   socket: WebSocket;
   slotSession: SlotSession;
   reconnecting?: boolean;
+  onNotify?: (message: string) => void;
 };
 
-export function TrackerShell({ room, socket, slotSession, reconnecting = false }: TrackerShellProps) {
+export function TrackerShell({
+  room,
+  socket,
+  slotSession,
+  reconnecting = false,
+  onNotify,
+}: TrackerShellProps) {
   const { tracker, protocolError } = useTrackerSession({ socket, slotSession, room });
   const [tab, setTab] = useState(0);
+
+  useNotifyNewCheckedLocations(tracker, slotSession, onNotify);
 
   return (
     <Box sx={{ position: "relative", opacity: reconnecting ? 0.65 : 1 }}>

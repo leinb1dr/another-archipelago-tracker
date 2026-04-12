@@ -21,10 +21,6 @@ import {
   itemHasProgressionFlag,
 } from "../../tracker/hintUtils";
 import {
-  checkedLocationsLastVisitStorageKey,
-  loadCheckedIdsFromLastVisit,
-} from "../../tracker/checkedLocationsLastVisitStorage";
-import {
   loadLastSessionEndAt,
   receivedItemsLastSessionEndStorageKey,
 } from "../../tracker/receivedItemsFirstSeenStorage";
@@ -58,27 +54,6 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
     () => hints.filter((h) => isOpenPriorityOrProgressionHintForOthers(h, mySlot)).sort(sortHintsByLocationItem),
     [hints, mySlot],
   );
-
-  const { hasCheckedBaseline, newCheckedLocationIds } = useMemo(() => {
-    const raw = loadCheckedIdsFromLastVisit(
-      checkedLocationsLastVisitStorageKey(
-        room.seed_name,
-        slotSession.connected.team,
-        slotSession.connected.slot,
-      ),
-    );
-    if (raw === null) {
-      return { hasCheckedBaseline: false, newCheckedLocationIds: [] as number[] };
-    }
-    const baseline = new Set(raw);
-    const next = location.checkedLocationIds.filter((id) => !baseline.has(id)).sort((a, b) => a - b);
-    return { hasCheckedBaseline: true, newCheckedLocationIds: next };
-  }, [
-    location.checkedLocationIds,
-    room.seed_name,
-    slotSession.connected.team,
-    slotSession.connected.slot,
-  ]);
 
   const { hasReceivedItemsBaseline, newReceivedItemsSinceLastVisit } = useMemo(() => {
     const raw = loadLastSessionEndAt(
@@ -154,34 +129,6 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
                 gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
                 h.location,
               )}
-            />
-          </ListItem>
-        ))}
-      </List>
-    );
-  };
-
-  const renderCheckList = (locationIds: number[]) => {
-    if (!maps) {
-      return (
-        <Typography variant="body2" color="text.secondary">
-          Loading data package…
-        </Typography>
-      );
-    }
-    if (locationIds.length === 0) {
-      return null;
-    }
-    return (
-      <List dense disablePadding>
-        {locationIds.slice(0, 12).map((id) => (
-          <ListItem key={id} disableGutters sx={{ py: 0.25 }}>
-            <ListItemText
-              primary={
-                <Typography component="span" variant="body2">
-                  {resolveLocationName(mapsByGame, slotSession.game, id)}
-                </Typography>
-              }
             />
           </ListItem>
         ))}
@@ -279,26 +226,6 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
               </Typography>
             ) : (
               renderHintList(priorityEntries, true)
-            )}
-          </Stack>
-          <Stack spacing={0.5}>
-            <Typography variant="subtitle2" color="text.secondary">
-              Latest checks since last login
-            </Typography>
-            {!hasCheckedBaseline ? (
-              <Typography variant="body2" color="text.secondary">
-                New checks will be listed here after you disconnect and sign in again.
-              </Typography>
-            ) : !maps ? (
-              <Typography variant="body2" color="text.secondary">
-                Loading data package…
-              </Typography>
-            ) : newCheckedLocationIds.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No new checks since your last login.
-              </Typography>
-            ) : (
-              renderCheckList(newCheckedLocationIds)
             )}
           </Stack>
           <Stack spacing={0.5}>

@@ -218,6 +218,7 @@ function App() {
                 socket={sessionSocket}
                 slotSession={slotSession}
                 reconnecting={roomReconnecting}
+                onNotify={setSnackbarMessage}
               />
             ) : (
               <RoomInfoView

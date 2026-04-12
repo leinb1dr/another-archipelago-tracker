@@ -16,10 +16,6 @@ import {
   type TrackerRuntimeState,
 } from "./packetHandlers";
 import {
-  checkedLocationsLastVisitStorageKey,
-  saveCheckedIdsForNextVisit,
-} from "./checkedLocationsLastVisitStorage";
-import {
   filterScoutedToValidLocations,
   loadScoutedLocations,
   saveScoutedLocations,
@@ -161,20 +157,6 @@ export function useTrackerSession(options: {
   }, [socket, slotSession, room, bootstrapSession, resolveReceivedItemsFirstSeen]);
 
   trackerRef.current = tracker;
-
-  useEffect(() => {
-    if (!room || !slotSession) return;
-    const storageKey = checkedLocationsLastVisitStorageKey(
-      room.seed_name,
-      slotSession.connected.team,
-      slotSession.connected.slot,
-    );
-    return () => {
-      const t = trackerRef.current;
-      if (!t) return;
-      saveCheckedIdsForNextVisit(storageKey, t.location.checkedLocationIds);
-    };
-  }, [room, slotSession]);
 
   useEffect(() => {
     if (!room || !slotSession) return;
