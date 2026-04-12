@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectedPacket } from "../protocol/connectPackets";
 import type { RetrievedPacket } from "../protocol/serverPackets";
 import { locationNameGroupsStorageKey, readHintsStorageKey } from "../protocol/serverPackets";
+import { mergeReceivedItemFirstSeen, type ResolveReceivedItemsFirstSeen } from "./receivedItemsFirstSeenMerge";
 import { applyLocationInfo, applyReceivedItems, applyRetrieved, initTrackerState } from "./packetHandlers";
 
 function minimalConnected(overrides: Partial<ConnectedPacket> = {}): ConnectedPacket {
@@ -168,6 +169,36 @@ describe("applyReceivedItems", () => {
       items: [{ item: 1, location: 2, player: 3, flags: 0 }, null, "x", { item: "bad" }] as never[],
     });
     expect(next.receivedItems).toEqual([{ item: item({}), firstSeenAt: ts1 }]);
+  });
+
+  it("preserves firstSeenAt across index 0 refresh when using merge resolver", () => {
+    let persisted: Record<string, number> = {};
+    const resolver: ResolveReceivedItemsFirstSeen = (items, now) => {
+      const { records, nextPersisted } = mergeReceivedItemFirstSeen(items, now, persisted);
+      persisted = nextPersisted;
+      return records;
+    };
+
+    const ts1 = Date.now();
+    let prev = initTrackerState(minimalConnected());
+    prev = applyReceivedItems(
+      prev,
+      { cmd: "ReceivedItems", index: 0, items: [item({ item: 10 })] },
+      { resolveFirstSeen: resolver },
+    );
+    expect(prev.receivedItems[0]?.firstSeenAt).toBe(ts1);
+
+    vi.setSystemTime(new Date("2024-06-01T12:00:00.000Z"));
+    const ts2 = Date.now();
+    prev = applyReceivedItems(
+      prev,
+      { cmd: "ReceivedItems", index: 0, items: [item({ item: 10 }), item({ item: 30 })] },
+      { resolveFirstSeen: resolver },
+    );
+    expect(prev.receivedItems).toEqual([
+      { item: item({ item: 10 }), firstSeenAt: ts1 },
+      { item: item({ item: 30 }), firstSeenAt: ts2 },
+    ]);
   });
 });
 

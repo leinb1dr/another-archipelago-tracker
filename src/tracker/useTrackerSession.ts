@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SlotSession } from "../protocol/connectPackets";
 import type { RoomInfo } from "../protocol/roomInfo";
 import {
@@ -25,6 +25,12 @@ import {
   saveScoutedLocations,
   scoutedLocationsStorageKey,
 } from "./scoutedLocationsStorage";
+import {
+  createReceivedItemsFirstSeenResolver,
+  receivedItemsLastSessionEndStorageKey,
+  saveLastSessionEndAt,
+} from "./receivedItemsFirstSeenStorage";
+import type { ResolveReceivedItemsFirstSeen } from "./receivedItemsFirstSeenMerge";
 
 export function useTrackerSession(options: {
   socket: WebSocket | null;
@@ -41,32 +47,51 @@ export function useTrackerSession(options: {
   const deferredHintsGetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const trackerRef = useRef<TrackerRuntimeState | null>(null);
 
-  const bootstrapSession = useCallback((ws: WebSocket, session: SlotSession, roomInfo: RoomInfo) => {
-    const connected = session.connected;
-    let next = initTrackerState(connected);
-    for (const p of session.connectBatchRest ?? []) {
-      next = processUnknownPacket(next, p, session.game);
-    }
-    const validLocationIds = new Set<number>();
-    for (const id of connected.missing_locations ?? []) validLocationIds.add(id);
-    for (const id of connected.checked_locations ?? []) validLocationIds.add(id);
-    const scoutKey = scoutedLocationsStorageKey(roomInfo.seed_name, connected.team, connected.slot);
-    const storedScouts = loadScoutedLocations(scoutKey);
-    if (storedScouts) {
-      const filtered = filterScoutedToValidLocations(storedScouts, validLocationIds);
-      next = { ...next, scoutedLocations: { ...next.scoutedLocations, ...filtered } };
-    }
-    setTracker(next);
-    setProtocolError(null);
+  const bootstrapSession = useCallback(
+    (
+      ws: WebSocket,
+      session: SlotSession,
+      roomInfo: RoomInfo,
+      resolveReceivedItemsFirstSeen: ResolveReceivedItemsFirstSeen | undefined,
+    ) => {
+      const connected = session.connected;
+      let next = initTrackerState(connected);
+      for (const p of session.connectBatchRest ?? []) {
+        next = processUnknownPacket(next, p, session.game, {
+          resolveReceivedItemsFirstSeen,
+        });
+      }
+      const validLocationIds = new Set<number>();
+      for (const id of connected.missing_locations ?? []) validLocationIds.add(id);
+      for (const id of connected.checked_locations ?? []) validLocationIds.add(id);
+      const scoutKey = scoutedLocationsStorageKey(roomInfo.seed_name, connected.team, connected.slot);
+      const storedScouts = loadScoutedLocations(scoutKey);
+      if (storedScouts) {
+        const filtered = filterScoutedToValidLocations(storedScouts, validLocationIds);
+        next = { ...next, scoutedLocations: { ...next.scoutedLocations, ...filtered } };
+      }
+      setTracker(next);
+      setProtocolError(null);
 
-    const games =
-      roomInfo.games.length > 0 ? roomInfo.games : [session.game];
-    const hintsKey = readHintsStorageKey(connected.team, connected.slot);
-    const groupsKey = locationNameGroupsStorageKey(session.game);
-    sendArchipelagoPacket(ws, buildGetDataPackagePacket(games));
-    sendArchipelagoPacket(ws, buildGetPacket([hintsKey, groupsKey]));
-    sendArchipelagoPacket(ws, buildSetNotifyPacket([`hints_${connected.team}_${connected.slot}`]));
-  }, []);
+      const games =
+        roomInfo.games.length > 0 ? roomInfo.games : [session.game];
+      const hintsKey = readHintsStorageKey(connected.team, connected.slot);
+      const groupsKey = locationNameGroupsStorageKey(session.game);
+      sendArchipelagoPacket(ws, buildGetDataPackagePacket(games));
+      sendArchipelagoPacket(ws, buildGetPacket([hintsKey, groupsKey]));
+      sendArchipelagoPacket(ws, buildSetNotifyPacket([`hints_${connected.team}_${connected.slot}`]));
+    },
+  [],
+  );
+
+  const resolveReceivedItemsFirstSeen = useMemo((): ResolveReceivedItemsFirstSeen | undefined => {
+    if (!room || !slotSession) return undefined;
+    return createReceivedItemsFirstSeenResolver(
+      room.seed_name,
+      slotSession.connected.team,
+      slotSession.connected.slot,
+    );
+  }, [room?.seed_name, slotSession?.connected.team, slotSession?.connected.slot]);
 
   useEffect(() => {
     if (!socket || !slotSession || !room) {
@@ -110,14 +135,16 @@ export function useTrackerSession(options: {
         }
         setTracker((prev) => {
           if (!prev) return prev;
-          return processUnknownPacket(prev, p, slotSession.game);
+          return processUnknownPacket(prev, p, slotSession.game, {
+            resolveReceivedItemsFirstSeen,
+          });
         });
       }
     };
 
     socket.addEventListener("message", onMessage);
     if (isNew) {
-      bootstrapSession(socket, slotSession, room);
+      bootstrapSession(socket, slotSession, room, resolveReceivedItemsFirstSeen);
       const hk = readHintsStorageKey(slotSession.connected.team, slotSession.connected.slot);
       deferredHintsGetRef.current = setTimeout(() => {
         deferredHintsGetRef.current = null;
@@ -131,7 +158,7 @@ export function useTrackerSession(options: {
       }
       socket.removeEventListener("message", onMessage);
     };
-  }, [socket, slotSession, room, bootstrapSession]);
+  }, [socket, slotSession, room, bootstrapSession, resolveReceivedItemsFirstSeen]);
 
   trackerRef.current = tracker;
 
@@ -146,6 +173,18 @@ export function useTrackerSession(options: {
       const t = trackerRef.current;
       if (!t) return;
       saveCheckedIdsForNextVisit(storageKey, t.location.checkedLocationIds);
+    };
+  }, [room, slotSession]);
+
+  useEffect(() => {
+    if (!room || !slotSession) return;
+    const storageKey = receivedItemsLastSessionEndStorageKey(
+      room.seed_name,
+      slotSession.connected.team,
+      slotSession.connected.slot,
+    );
+    return () => {
+      saveLastSessionEndAt(storageKey, Date.now());
     };
   }, [room, slotSession]);
 

@@ -18,6 +18,9 @@ import {
   locationNameGroupsStorageKey,
   readHintsStorageKey,
 } from "../protocol/serverPackets";
+import type { ResolveReceivedItemsFirstSeen } from "./receivedItemsFirstSeenMerge";
+
+export type { ResolveReceivedItemsFirstSeen };
 
 /** Archipelago `Retrieved` puts requested values in `keys`; some mocks put them on the packet root. */
 function getRetrievedStorageValue(packet: RetrievedPacket, storageKey: string): unknown {
@@ -167,15 +170,17 @@ export function applySetReply(prev: TrackerRuntimeState, packet: SetReplyPacket)
 export function applyReceivedItems(
   prev: TrackerRuntimeState,
   packet: ReceivedItemsPacket,
+  options?: { resolveFirstSeen?: ResolveReceivedItemsFirstSeen },
 ): TrackerRuntimeState {
   const items = parseNetworkItems(packet.items);
   const index = packet.index;
   const now = Date.now();
+  const resolveFirstSeen = options?.resolveFirstSeen ?? ((inp: NetworkItem[], t: number) => wrapReceivedItems(inp, t));
 
   if (index === 0) {
     return {
       ...prev,
-      receivedItems: wrapReceivedItems(items, now),
+      receivedItems: resolveFirstSeen(items, now),
       receivedItemsSyncError: null,
     };
   }
@@ -183,7 +188,7 @@ export function applyReceivedItems(
   if (index === prev.receivedItems.length) {
     return {
       ...prev,
-      receivedItems: [...prev.receivedItems, ...wrapReceivedItems(items, now)],
+      receivedItems: [...prev.receivedItems, ...resolveFirstSeen(items, now)],
       receivedItemsSyncError: null,
     };
   }
@@ -221,6 +226,7 @@ export function processUnknownPacket(
   prev: TrackerRuntimeState,
   packet: unknown,
   gameName: string,
+  options?: { resolveReceivedItemsFirstSeen?: ResolveReceivedItemsFirstSeen },
 ): TrackerRuntimeState {
   if (packet === null || typeof packet !== "object" || !("cmd" in packet)) return prev;
   const cmd = (packet as { cmd?: string }).cmd;
@@ -234,7 +240,9 @@ export function processUnknownPacket(
     case "SetReply":
       return applySetReply(prev, packet as SetReplyPacket);
     case "ReceivedItems":
-      return applyReceivedItems(prev, packet as ReceivedItemsPacket);
+      return applyReceivedItems(prev, packet as ReceivedItemsPacket, {
+        resolveFirstSeen: options?.resolveReceivedItemsFirstSeen,
+      });
     case "LocationInfo":
       return applyLocationInfo(prev, packet as LocationInfoPacket);
     default:

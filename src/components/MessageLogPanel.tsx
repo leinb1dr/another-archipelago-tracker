@@ -113,7 +113,7 @@ function FrameBlock({ entry }: { entry: InboundLogEntry }) {
 }
 
 export function MessageLogPanel({ entries, onClear }: MessageLogPanelProps) {
-  const [panelExpanded, setPanelExpanded] = useState(true);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const newestFirst = useMemo(() => [...entries].reverse(), [entries]);
 
   return (

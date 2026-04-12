@@ -13,7 +13,7 @@ import type { SlotSession } from "../../protocol/connectPackets";
 import type { RoomInfo } from "../../protocol/roomInfo";
 import type { HintPacket } from "../../protocol/serverPackets";
 import { completionRatio } from "../../tracker/locationState";
-import type { TrackerRuntimeState } from "../../tracker/packetHandlers";
+import type { ReceivedItemRecord, TrackerRuntimeState } from "../../tracker/packetHandlers";
 import {
   hintStableKey,
   isOpenPriorityOrProgressionHintForOthers,
@@ -24,7 +24,11 @@ import {
   checkedLocationsLastVisitStorageKey,
   loadCheckedIdsFromLastVisit,
 } from "../../tracker/checkedLocationsLastVisitStorage";
-import { resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
+import {
+  loadLastSessionEndAt,
+  receivedItemsLastSessionEndStorageKey,
+} from "../../tracker/receivedItemsFirstSeenStorage";
+import { playerAlias, resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
 import { gameForHintItem, gameForHintLocation } from "../../tracker/slotGames";
 
 export type OverallStatusViewProps = {
@@ -37,8 +41,13 @@ function sortHintsByLocationItem(a: HintPacket, b: HintPacket): number {
   return a.location - b.location || a.item - b.item;
 }
 
+function formatNetworkId(id: number): string {
+  if (id <= 0) return `(special #${id})`;
+  return `#${id}`;
+}
+
 export function OverallStatusView({ room, slotSession, tracker }: OverallStatusViewProps) {
-  const { location, mapsByGame, hints, slotGames } = tracker;
+  const { location, mapsByGame, hints, slotGames, players, receivedItems } = tracker;
   const maps = mapsByGame[slotSession.game];
   const pct = completionRatio(location);
   const pctLabel = pct === null ? "—" : `${Math.round(pct * 1000) / 10}%`;
@@ -66,6 +75,26 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
     return { hasCheckedBaseline: true, newCheckedLocationIds: next };
   }, [
     location.checkedLocationIds,
+    room.seed_name,
+    slotSession.connected.team,
+    slotSession.connected.slot,
+  ]);
+
+  const { hasReceivedItemsBaseline, newReceivedItemsSinceLastVisit } = useMemo(() => {
+    const raw = loadLastSessionEndAt(
+      receivedItemsLastSessionEndStorageKey(
+        room.seed_name,
+        slotSession.connected.team,
+        slotSession.connected.slot,
+      ),
+    );
+    if (raw === null) {
+      return { hasReceivedItemsBaseline: false, newReceivedItemsSinceLastVisit: [] as ReceivedItemRecord[] };
+    }
+    const next = receivedItems.filter((r) => r.firstSeenAt > raw);
+    return { hasReceivedItemsBaseline: true, newReceivedItemsSinceLastVisit: next };
+  }, [
+    receivedItems,
     room.seed_name,
     slotSession.connected.team,
     slotSession.connected.slot,
@@ -160,6 +189,49 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
     );
   };
 
+  const renderNewReceivedList = () => {
+    if (!maps) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Loading data package…
+        </Typography>
+      );
+    }
+    const rows = newReceivedItemsSinceLastVisit;
+    if (rows.length === 0) {
+      return null;
+    }
+    return (
+      <List dense disablePadding>
+        {rows.slice(0, 12).map((rec, i) => {
+          const ni = rec.item;
+          const finderGame = gameForHintLocation(slotGames, ni.player) ?? slotSession.game;
+          const itemLabel =
+            ni.item <= 0
+              ? formatNetworkId(ni.item)
+              : resolveItemName(mapsByGame, ni.item, slotSession.game);
+          const locLabel =
+            ni.location <= 0
+              ? formatNetworkId(ni.location)
+              : resolveLocationName(mapsByGame, finderGame, ni.location);
+          const fromLabel = playerAlias(players, ni.player);
+          return (
+            <ListItem key={`${ni.item}-${ni.location}-${ni.player}-${i}`} disableGutters sx={{ py: 0.25 }}>
+              <ListItemText
+                primary={
+                  <Typography component="span" variant="body2">
+                    {itemLabel}
+                  </Typography>
+                }
+                secondary={`${locLabel} · From ${fromLabel}`}
+              />
+            </ListItem>
+          );
+        })}
+      </List>
+    );
+  };
+
   return (
     <Card variant="outlined">
       <CardHeader title="Overall status" slotProps={{ title: { component: "h2" } }} />
@@ -227,6 +299,29 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
               </Typography>
             ) : (
               renderCheckList(newCheckedLocationIds)
+            )}
+          </Stack>
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle2" color="text.secondary">
+              New items since last visit
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Items sent to you (ReceivedItems) that arrived after your previous session ended.
+            </Typography>
+            {!hasReceivedItemsBaseline ? (
+              <Typography variant="body2" color="text.secondary">
+                New items will be listed here after you disconnect and sign in again.
+              </Typography>
+            ) : !maps ? (
+              <Typography variant="body2" color="text.secondary">
+                Loading data package…
+              </Typography>
+            ) : newReceivedItemsSinceLastVisit.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No new items since your last visit.
+              </Typography>
+            ) : (
+              renderNewReceivedList()
             )}
           </Stack>
         </Stack>
