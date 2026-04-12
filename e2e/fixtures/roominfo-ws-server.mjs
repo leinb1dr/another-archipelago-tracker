@@ -46,6 +46,7 @@ function dataPackageReply() {
           location_name_to_id: {
             "E2E Location Alpha": 100,
             "E2E Location Beta": 101,
+            "E2E Scout Target": 102,
           },
           item_name_to_id: {
             "E2E Item": 200,
@@ -85,7 +86,7 @@ function retrievedReply(requestedKeys) {
   }
   if (requestedKeys.includes(groupsKey)) {
     keys[groupsKey] = {
-      Dungeon: ["E2E Location Alpha"],
+      Dungeon: ["E2E Location Alpha", "E2E Scout Target"],
       Field: ["E2E Location Beta"],
     };
   }
@@ -120,7 +121,7 @@ wss.on("connection", (socket) => {
                 class: "NetworkPlayer",
               },
             ],
-            missing_locations: [100],
+            missing_locations: [100, 102],
             checked_locations: [101],
             hint_points: 3,
             slot_info: {
@@ -137,6 +138,17 @@ wss.on("connection", (socket) => {
         }
         if (p.cmd === "Get" && Array.isArray(p.keys)) {
           reply.push(retrievedReply(p.keys));
+        }
+        if (p.cmd === "LocationScouts" && Array.isArray(p.locations)) {
+          reply.push({
+            cmd: "LocationInfo",
+            locations: p.locations.map((locId) => ({
+              item: 200,
+              location: locId,
+              player: 1,
+              flags: 1,
+            })),
+          });
         }
       }
 

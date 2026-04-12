@@ -4,10 +4,15 @@ import type { HintPacket } from "../protocol/serverPackets";
 import {
   canChangeHintStatus,
   EDITABLE_HINT_STATUSES,
+  hintStatusChipColor,
+  hintStatusChips,
   hintStatusLabel,
   hintsForFindingPlayer,
   hintsForReceivingPlayer,
   isPriorityHint,
+  itemClassificationChipLabels,
+  itemClassificationChipSpecs,
+  itemHasProgressionFlag,
   parseHintList,
 } from "./hintUtils";
 
@@ -67,6 +72,7 @@ describe("parseHintList", () => {
 
 describe("hintStatusLabel and isPriorityHint", () => {
   it("labels upstream HintStatus values", () => {
+    expect(hintStatusLabel(undefined)).toBe("Unspecified");
     expect(hintStatusLabel(HINT_STATUS.HINT_PRIORITY)).toBe("Priority");
     expect(hintStatusLabel(HINT_STATUS.HINT_NO_PRIORITY)).toBe("No priority");
   });
@@ -109,6 +115,61 @@ describe("canChangeHintStatus", () => {
   it("editable list excludes Found", () => {
     expect(EDITABLE_HINT_STATUSES).not.toContain(HINT_STATUS.HINT_FOUND);
     expect(EDITABLE_HINT_STATUSES).toHaveLength(4);
+  });
+});
+
+describe("hintStatusChips and hintStatusChipColor", () => {
+  it("maps each HintStatus to a chip spec with label and color", () => {
+    expect(hintStatusChips(undefined)).toEqual([
+      { key: "hintStatus", label: "Unspecified", color: "default" },
+    ]);
+    expect(hintStatusChips(HINT_STATUS.HINT_UNSPECIFIED)).toEqual([
+      { key: "hintStatus", label: "Unspecified", color: "default" },
+    ]);
+    expect(hintStatusChips(HINT_STATUS.HINT_NO_PRIORITY)).toEqual([
+      { key: "hintStatus", label: "No priority", color: "info" },
+    ]);
+    expect(hintStatusChips(HINT_STATUS.HINT_AVOID)).toEqual([
+      { key: "hintStatus", label: "Avoid", color: "error" },
+    ]);
+    expect(hintStatusChips(HINT_STATUS.HINT_PRIORITY)).toEqual([
+      { key: "hintStatus", label: "Priority", color: "success" },
+    ]);
+    expect(hintStatusChips(HINT_STATUS.HINT_FOUND)).toEqual([
+      { key: "hintStatus", label: "Found", color: "primary" },
+    ]);
+    expect(hintStatusChipColor(999)).toBe("default");
+  });
+});
+
+describe("itemClassificationChipLabels", () => {
+  it("returns empty for undefined or no bits", () => {
+    expect(itemClassificationChipLabels(undefined)).toEqual([]);
+    expect(itemClassificationChipLabels(0)).toEqual([]);
+  });
+
+  it("maps progression, useful, and trap bits to labels in order", () => {
+    expect(itemClassificationChipLabels(0b001)).toEqual(["Progression"]);
+    expect(itemClassificationChipLabels(0b010)).toEqual(["Useful"]);
+    expect(itemClassificationChipLabels(0b100)).toEqual(["Trap"]);
+    expect(itemClassificationChipLabels(0b111)).toEqual(["Progression", "Useful", "Trap"]);
+  });
+
+  it("itemClassificationChipSpecs matches label order and keys", () => {
+    expect(itemClassificationChipSpecs(undefined)).toEqual([]);
+    const all = itemClassificationChipSpecs(0b111);
+    expect(all.map((s) => s.key)).toEqual(["progression", "useful", "trap"]);
+    expect(all.map((s) => s.label)).toEqual(["Progression", "Useful", "Trap"]);
+    expect(all[0]?.sx.borderColor).toBe("#7b1fa2");
+    expect(all[1]?.sx.borderColor).toBe("#1565c0");
+    expect(all[2]?.sx.borderColor).toBe("#6d4c41");
+  });
+
+  it("itemHasProgressionFlag matches progression bit", () => {
+    expect(itemHasProgressionFlag(undefined)).toBe(false);
+    expect(itemHasProgressionFlag(0)).toBe(false);
+    expect(itemHasProgressionFlag(0b001)).toBe(true);
+    expect(itemHasProgressionFlag(0b010)).toBe(false);
   });
 });
 

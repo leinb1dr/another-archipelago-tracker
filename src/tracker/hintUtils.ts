@@ -77,14 +77,79 @@ export function canChangeHintStatus(h: HintPacket, mySlot: number): boolean {
   return s !== HINT_STATUS.HINT_FOUND;
 }
 
-/** Progression flag (bit 0) from NetworkItem.flags */
+/** Item classification bits on `NetworkItem.flags` and `Hint.item_flags` (network protocol). */
+export const ITEM_FLAG_PROGRESSION = 0b001;
+export const ITEM_FLAG_USEFUL = 0b010;
+export const ITEM_FLAG_TRAP = 0b100;
+
+/** Chip labels in display order for each set classification bit. */
+export function itemClassificationChipLabels(flags: number | undefined): string[] {
+  if (flags === undefined) return [];
+  const out: string[] = [];
+  if ((flags & ITEM_FLAG_PROGRESSION) !== 0) out.push("Progression");
+  if ((flags & ITEM_FLAG_USEFUL) !== 0) out.push("Useful");
+  if ((flags & ITEM_FLAG_TRAP) !== 0) out.push("Trap");
+  return out;
+}
+
+/** Outlined chip styles for item classification (purple / blue / brown). */
+export type ItemClassificationChipSx = {
+  borderColor: string;
+  color: string;
+  "&:hover": { backgroundColor: string };
+};
+
+export interface ItemClassificationChipSpec {
+  key: "progression" | "useful" | "trap";
+  label: string;
+  sx: ItemClassificationChipSx;
+}
+
+const ITEM_CLASSIFICATION_SX: Record<
+  "progression" | "useful" | "trap",
+  ItemClassificationChipSx
+> = {
+  progression: {
+    borderColor: "#7b1fa2",
+    color: "#7b1fa2",
+    "&:hover": { backgroundColor: "rgba(123, 31, 162, 0.08)" },
+  },
+  useful: {
+    borderColor: "#1565c0",
+    color: "#1565c0",
+    "&:hover": { backgroundColor: "rgba(21, 101, 192, 0.08)" },
+  },
+  trap: {
+    borderColor: "#6d4c41",
+    color: "#6d4c41",
+    "&:hover": { backgroundColor: "rgba(109, 76, 65, 0.08)" },
+  },
+};
+
+/** Display specs for classification chips (same order as `itemClassificationChipLabels`). */
+export function itemClassificationChipSpecs(flags: number | undefined): ItemClassificationChipSpec[] {
+  if (flags === undefined) return [];
+  const out: ItemClassificationChipSpec[] = [];
+  if ((flags & ITEM_FLAG_PROGRESSION) !== 0) {
+    out.push({ key: "progression", label: "Progression", sx: ITEM_CLASSIFICATION_SX.progression });
+  }
+  if ((flags & ITEM_FLAG_USEFUL) !== 0) {
+    out.push({ key: "useful", label: "Useful", sx: ITEM_CLASSIFICATION_SX.useful });
+  }
+  if ((flags & ITEM_FLAG_TRAP) !== 0) {
+    out.push({ key: "trap", label: "Trap", sx: ITEM_CLASSIFICATION_SX.trap });
+  }
+  return out;
+}
+
+/** Progression flag (bit 0) from NetworkItem.flags / Hint.item_flags */
 export function itemHasProgressionFlag(flags: number | undefined): boolean {
   if (flags === undefined) return false;
-  return (flags & 0b001) !== 0;
+  return (flags & ITEM_FLAG_PROGRESSION) !== 0;
 }
 
 export function hintStatusLabel(status: number | undefined): string {
-  if (status === undefined) return "—";
+  if (status === undefined) return "Unspecified";
   switch (status) {
     case HINT_STATUS.HINT_UNSPECIFIED:
       return "Unspecified";
@@ -99,4 +164,49 @@ export function hintStatusLabel(status: number | undefined): string {
     default:
       return String(status);
   }
+}
+
+/** MUI `Chip` color for each `HintStatus` value (parallel to item classification chips). */
+export type HintStatusChipColor =
+  | "default"
+  | "primary"
+  | "secondary"
+  | "error"
+  | "info"
+  | "success"
+  | "warning";
+
+export function hintStatusChipColor(status: number | undefined): HintStatusChipColor {
+  const s = status ?? HINT_STATUS.HINT_UNSPECIFIED;
+  switch (s) {
+    case HINT_STATUS.HINT_UNSPECIFIED:
+      return "default";
+    case HINT_STATUS.HINT_NO_PRIORITY:
+      return "info";
+    case HINT_STATUS.HINT_AVOID:
+      return "error";
+    case HINT_STATUS.HINT_PRIORITY:
+      return "success";
+    case HINT_STATUS.HINT_FOUND:
+      return "primary";
+    default:
+      return "default";
+  }
+}
+
+export interface HintStatusChipSpec {
+  key: string;
+  label: string;
+  color: HintStatusChipColor;
+}
+
+/** One chip per hint status (same pattern as `itemClassificationChipLabels` for flags). */
+export function hintStatusChips(status: number | undefined): HintStatusChipSpec[] {
+  return [
+    {
+      key: "hintStatus",
+      label: hintStatusLabel(status),
+      color: hintStatusChipColor(status),
+    },
+  ];
 }

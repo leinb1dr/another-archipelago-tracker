@@ -3,10 +3,14 @@ import AccordionDetails from "@mui/material/AccordionDetails";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardHeader from "@mui/material/CardHeader";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import Paper from "@mui/material/Paper";
@@ -21,16 +25,22 @@ import TableRow from "@mui/material/TableRow";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { sendArchipelagoPacket } from "../../connection/sendArchipelagoPacket";
 import type { SlotSession } from "../../protocol/connectPackets";
-import { HINT_STATUS, type HintPacket } from "../../protocol/serverPackets";
+import {
+  buildLocationScoutsPacket,
+  LOCATION_SCOUT_CREATE_AS_HINT,
+  type HintPacket,
+} from "../../protocol/serverPackets";
 import { buildCheckRows, groupRowsByLabel } from "../../tracker/checksGrouping";
-import { hintStatusLabel } from "../../tracker/hintUtils";
+import { hintStatusChips, itemClassificationChipSpecs } from "../../tracker/hintUtils";
 import type { TrackerRuntimeState } from "../../tracker/packetHandlers";
 import { playerAlias, resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
 import { gameForHintItem, gameForHintLocation } from "../../tracker/slotGames";
 
 export type ChecksViewProps = {
+  socket: WebSocket;
   slotSession: SlotSession;
   tracker: TrackerRuntimeState;
 };
@@ -55,7 +65,53 @@ function formatNetworkId(id: number): string {
 const SUB_TAB_RECEIVED = 0;
 const SUB_TAB_SENT = 1;
 
-export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
+const SCOUT_TIMEOUT_MS = 12_000;
+
+type SentCheckDetailLineProps = {
+  prefix: "Scout" | "Hint";
+  itemText: string;
+  forPlayerName: string;
+  flags: number | undefined;
+  /** Hint status when `includeStatusChips` is true. */
+  status: number | undefined;
+  /** Scouts omit hint-status chips; hints show them. */
+  includeStatusChips: boolean;
+};
+
+function SentCheckDetailLine({
+  prefix,
+  itemText,
+  forPlayerName,
+  flags,
+  status,
+  includeStatusChips,
+}: SentCheckDetailLineProps) {
+  return (
+    <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+      <Typography variant="caption" color="text.secondary" component="span">
+        {prefix}: {itemText}
+        {" · "}
+        For {forPlayerName}
+      </Typography>
+      {itemClassificationChipSpecs(flags).map((spec) => (
+        <Chip key={spec.key} size="small" label={spec.label} variant="outlined" sx={spec.sx} />
+      ))}
+      {includeStatusChips
+        ? hintStatusChips(status).map((spec) => (
+            <Chip
+              key={spec.key}
+              size="small"
+              label={spec.label}
+              variant="outlined"
+              color={spec.color}
+            />
+          ))
+        : null}
+    </Stack>
+  );
+}
+
+export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
   const {
     location,
     mapsByGame,
@@ -65,11 +121,14 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
     slotGames,
     receivedItems,
     receivedItemsSyncError,
+    scoutedLocations,
   } = tracker;
   const maps = mapsByGame[slotSession.game];
   const [subTab, setSubTab] = useState(SUB_TAB_SENT);
   const [querySent, setQuerySent] = useState("");
   const [queryReceived, setQueryReceived] = useState("");
+  const [hideFinished, setHideFinished] = useState(true);
+  const [scoutingLocationId, setScoutingLocationId] = useState<number | null>(null);
 
   const rows = useMemo(() => {
     if (!maps) return [];
@@ -81,6 +140,11 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
     });
   }, [location, maps, locationGroups]);
 
+  const rowsForSent = useMemo(() => {
+    if (!hideFinished) return rows;
+    return rows.filter((r) => !r.checked);
+  }, [rows, hideFinished]);
+
   const byLocHint = useMemo(
     () => hintsByLocationForFinder(hints, tracker.slot),
     [hints, tracker.slot],
@@ -88,11 +152,18 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
 
   const filteredRows = useMemo(() => {
     const q = querySent.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => r.name.toLowerCase().includes(q));
-  }, [rows, querySent]);
+    if (!q) return rowsForSent;
+    return rowsForSent.filter((r) => r.name.toLowerCase().includes(q));
+  }, [rowsForSent, querySent]);
 
   const grouped = useMemo(() => groupRowsByLabel(filteredRows), [filteredRows]);
+
+  useEffect(() => {
+    if (scoutingLocationId === null) return;
+    if (scoutedLocations[scoutingLocationId]?.length) {
+      setScoutingLocationId(null);
+    }
+  }, [scoutingLocationId, scoutedLocations]);
 
   const receivedRows = useMemo(() => {
     return receivedItems.map((ni, index) => {
@@ -113,19 +184,40 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
   const qReceived = queryReceived.trim().toLowerCase();
 
   const filteredReceived = useMemo(() => {
-    if (!qReceived) return receivedRows;
-    return receivedRows.filter(
-      (r) =>
-        r.itemLabel.toLowerCase().includes(qReceived) ||
-        r.locLabel.toLowerCase().includes(qReceived) ||
-        r.fromLabel.toLowerCase().includes(qReceived),
-    );
+    const rows = !qReceived
+      ? receivedRows
+      : receivedRows.filter(
+          (r) =>
+            r.itemLabel.toLowerCase().includes(qReceived) ||
+            r.locLabel.toLowerCase().includes(qReceived) ||
+            r.fromLabel.toLowerCase().includes(qReceived),
+        );
+    return [...rows].sort((a, b) => b.index - a.index);
   }, [receivedRows, qReceived]);
 
   const helperText =
     subTab === SUB_TAB_RECEIVED
-      ? "Items sent to you from other players’ worlds (ReceivedItems)."
+      ? "Items sent to you from other players’ worlds (ReceivedItems). Newest first."
       : "Locations in your game — checked and remaining.";
+
+  const runLocationScouts = (locationId: number, createAsHint: number) => {
+    setScoutingLocationId(locationId);
+    sendArchipelagoPacket(
+      socket,
+      buildLocationScoutsPacket({ locations: [locationId], createAsHint }),
+    );
+    window.setTimeout(() => {
+      setScoutingLocationId((cur) => (cur === locationId ? null : cur));
+    }, SCOUT_TIMEOUT_MS);
+  };
+
+  const onScout = (locationId: number) => {
+    runLocationScouts(locationId, LOCATION_SCOUT_CREATE_AS_HINT.NONE);
+  };
+
+  const onShareScout = (locationId: number) => {
+    runLocationScouts(locationId, LOCATION_SCOUT_CREATE_AS_HINT.BROADCAST_NEW);
+  };
 
   if (!maps) {
     return (
@@ -206,14 +298,25 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
             </Stack>
           ) : (
             <>
-              <TextField
-                label="Filter by name"
-                value={querySent}
-                onChange={(e) => setQuerySent(e.target.value)}
-                fullWidth
-                size="small"
-                sx={{ mb: 2 }}
-              />
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ alignItems: { sm: "flex-end" } }}>
+                <TextField
+                  label="Filter by name"
+                  value={querySent}
+                  onChange={(e) => setQuerySent(e.target.value)}
+                  fullWidth
+                  size="small"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={hideFinished}
+                      onChange={(_, c) => setHideFinished(c)}
+                      size="small"
+                    />
+                  }
+                  label="Hide finished checks"
+                />
+              </Stack>
               {groupKeys.map((group) => (
                 <Accordion key={group} defaultExpanded>
                   <AccordionSummary>
@@ -225,6 +328,8 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
                     <List dense disablePadding>
                       {grouped.get(group)?.map((row) => {
                         const atHints = byLocHint.get(row.id) ?? [];
+                        const scouted = scoutedLocations[row.id];
+                        const isScouting = scoutingLocationId === row.id;
                         return (
                           <ListItem key={row.id} disableGutters sx={{ py: 1, alignItems: "flex-start" }}>
                             <Stack
@@ -241,60 +346,91 @@ export function ChecksView({ slotSession, tracker }: ChecksViewProps) {
                                 {row.checked ? "✓" : "○"}
                               </Typography>
                               <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography
-                                  variant="body2"
-                                  component="div"
-                                  color={row.checked ? "text.primary" : "text.secondary"}
-                                >
-                                  {row.name}
-                                </Typography>
-                                {atHints.length > 0 ? (
-                                  <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    sx={{ mt: 0.5, alignItems: "flex-start" }}
+                                <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start", flexWrap: "wrap" }}>
+                                  <Typography
+                                    variant="body2"
+                                    component="div"
+                                    color={row.checked ? "text.primary" : "text.secondary"}
+                                    sx={{ flex: "1 1 auto", minWidth: 0 }}
                                   >
-                                    <Box
-                                      sx={(theme) => ({
-                                        flex: 1,
-                                        minWidth: 0,
-                                        pl: 1,
-                                        borderLeft: `2px solid ${theme.palette.divider}`,
-                                      })}
+                                    {row.name}
+                                  </Typography>
+                                  {!row.checked && atHints.length === 0 && !(scouted && scouted.length > 0) ? (
+                                    <Button
+                                      type="button"
+                                      size="small"
+                                      variant="outlined"
+                                      color="primary"
+                                      disabled={isScouting || socket.readyState !== WebSocket.OPEN}
+                                      onClick={() => onScout(row.id)}
+                                      sx={{ flexShrink: 0 }}
                                     >
-                                      {atHints.map((h, i) => (
-                                        <Typography
-                                          key={`${row.id}-${h.item}-${h.location}-${i}`}
-                                          variant="caption"
-                                          component="div"
-                                          color="text.secondary"
-                                          sx={{ display: "block", lineHeight: 1.5 }}
-                                        >
-                                          Hinted:{" "}
-                                          {resolveItemName(
-                                            mapsByGame,
-                                            h.item,
-                                            gameForHintItem(slotGames, h.receiving_player) ??
-                                              slotSession.game,
-                                          )}{" "}
-                                          · For{" "}
-                                          {playerAlias(players, h.receiving_player)}
-                                        </Typography>
-                                      ))}
-                                    </Box>
-                                    <Stack spacing={0.5} sx={{ flexShrink: 0, pt: 0.125 }}>
-                                      {atHints.map((h, i) => (
-                                        <Chip
-                                          key={`chip-${row.id}-${h.item}-${i}`}
-                                          size="small"
-                                          label={hintStatusLabel(h.status)}
-                                          variant="outlined"
-                                          color={
-                                            h.status === HINT_STATUS.HINT_PRIORITY ? "warning" : "default"
-                                          }
-                                        />
-                                      ))}
-                                    </Stack>
+                                      {isScouting ? (
+                                        <CircularProgress size={16} sx={{ mr: 0.5 }} aria-hidden />
+                                      ) : null}
+                                      Scout
+                                    </Button>
+                                  ) : null}
+                                  {!row.checked &&
+                                  atHints.length === 0 &&
+                                  scouted &&
+                                  scouted.length > 0 ? (
+                                    <Button
+                                      type="button"
+                                      size="small"
+                                      variant="outlined"
+                                      color="success"
+                                      disabled={isScouting || socket.readyState !== WebSocket.OPEN}
+                                      onClick={() => onShareScout(row.id)}
+                                      sx={{ flexShrink: 0 }}
+                                    >
+                                      {isScouting ? (
+                                        <CircularProgress size={16} sx={{ mr: 0.5 }} aria-hidden />
+                                      ) : null}
+                                      Share
+                                    </Button>
+                                  ) : null}
+                                </Stack>
+                                {scouted && scouted.length > 0 && atHints.length === 0 ? (
+                                  <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                                    {scouted.map((ni, si) => (
+                                      <SentCheckDetailLine
+                                        key={`${row.id}-scout-${ni.item}-${si}`}
+                                        prefix="Scout"
+                                        itemText={
+                                          ni.item <= 0
+                                            ? formatNetworkId(ni.item)
+                                            : resolveItemName(
+                                                mapsByGame,
+                                                ni.item,
+                                                gameForHintItem(slotGames, ni.player) ?? slotSession.game,
+                                              )
+                                        }
+                                        forPlayerName={playerAlias(players, ni.player)}
+                                        flags={ni.flags}
+                                        status={undefined}
+                                        includeStatusChips={false}
+                                      />
+                                    ))}
+                                  </Stack>
+                                ) : null}
+                                {atHints.length > 0 ? (
+                                  <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                                    {atHints.map((h, i) => (
+                                      <SentCheckDetailLine
+                                        key={`${row.id}-${h.item}-${h.location}-${i}`}
+                                        prefix="Hint"
+                                        itemText={resolveItemName(
+                                          mapsByGame,
+                                          h.item,
+                                          gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                                        )}
+                                        forPlayerName={playerAlias(players, h.receiving_player)}
+                                        flags={h.item_flags}
+                                        status={h.status}
+                                        includeStatusChips
+                                      />
+                                    ))}
                                   </Stack>
                                 ) : null}
                               </Box>

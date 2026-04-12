@@ -45,6 +45,19 @@ export interface NetworkItem {
   flags: number;
 }
 
+/** https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#locationinfo */
+export interface LocationInfoPacket {
+  cmd: "LocationInfo";
+  locations: NetworkItem[];
+}
+
+/** https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#locationscouts */
+export interface LocationScoutsPacket {
+  cmd: "LocationScouts";
+  locations: number[];
+  create_as_hint: number;
+}
+
 /** https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/network%20protocol.md#receiveditems */
 export interface ReceivedItemsPacket {
   cmd: "ReceivedItems";
@@ -127,6 +140,31 @@ export function buildUpdateHintPacket(args: {
     player: args.player,
     location: args.location,
     status: args.status,
+  };
+}
+
+/** Values for `LocationScouts.create_as_hint` (see upstream network protocol). */
+export const LOCATION_SCOUT_CREATE_AS_HINT = {
+  /** Scout only; no hint. */
+  NONE: 0,
+  /** Create hints and broadcast to all clients. */
+  BROADCAST_ALL: 1,
+  /** Create hints; broadcast only new hints (typical “share” / avoid duplicate spam). */
+  BROADCAST_NEW: 2,
+} as const;
+
+export function buildLocationScoutsPacket(args: {
+  locations: number[];
+  /**
+   * `0` = scout only; `1` = create hints + broadcast all; `2` = create hints + broadcast only new.
+   * Defaults to `0`.
+   */
+  createAsHint?: number;
+}): LocationScoutsPacket {
+  return {
+    cmd: "LocationScouts",
+    locations: args.locations,
+    create_as_hint: args.createAsHint ?? 0,
   };
 }
 

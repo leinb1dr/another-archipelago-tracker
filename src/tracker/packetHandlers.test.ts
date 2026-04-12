@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ConnectedPacket } from "../protocol/connectPackets";
 import type { RetrievedPacket } from "../protocol/serverPackets";
 import { locationNameGroupsStorageKey, readHintsStorageKey } from "../protocol/serverPackets";
-import { applyReceivedItems, applyRetrieved, initTrackerState } from "./packetHandlers";
+import { applyLocationInfo, applyReceivedItems, applyRetrieved, initTrackerState } from "./packetHandlers";
 
 function minimalConnected(overrides: Partial<ConnectedPacket> = {}): ConnectedPacket {
   return {
@@ -145,5 +145,38 @@ describe("applyReceivedItems", () => {
       items: [{ item: 1, location: 2, player: 3, flags: 0 }, null, "x", { item: "bad" }] as never[],
     });
     expect(next.receivedItems).toEqual([item({})]);
+  });
+});
+
+describe("applyLocationInfo", () => {
+  it("stores items by location id", () => {
+    const prev = initTrackerState(minimalConnected());
+    const next = applyLocationInfo(prev, {
+      cmd: "LocationInfo",
+      locations: [
+        { item: 10, location: 100, player: 2, flags: 1 },
+        { item: 11, location: 100, player: 2, flags: 0 },
+      ],
+    });
+    expect(next.scoutedLocations[100]).toHaveLength(2);
+    expect(next.scoutedLocations[100]?.[0]?.item).toBe(10);
+  });
+
+  it("replaces prior scout data for the same location", () => {
+    let prev = initTrackerState(minimalConnected());
+    prev = applyLocationInfo(prev, {
+      cmd: "LocationInfo",
+      locations: [{ item: 1, location: 50, player: 1, flags: 0 }],
+    });
+    prev = applyLocationInfo(prev, {
+      cmd: "LocationInfo",
+      locations: [{ item: 2, location: 50, player: 1, flags: 0 }],
+    });
+    expect(prev.scoutedLocations[50]).toEqual([{ item: 2, location: 50, player: 1, flags: 0 }]);
+  });
+
+  it("no-ops when locations array is empty or invalid", () => {
+    const prev = initTrackerState(minimalConnected());
+    expect(applyLocationInfo(prev, { cmd: "LocationInfo", locations: [] })).toBe(prev);
   });
 });

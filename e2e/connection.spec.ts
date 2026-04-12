@@ -53,13 +53,18 @@ test.describe("connection", () => {
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
-    await expect(page.getByText("50%")).toBeVisible();
-    await expect(page.getByText("1 checked · 1 remaining")).toBeVisible();
+    await expect(page.getByText("33.3%")).toBeVisible();
+    await expect(page.getByText("1 checked · 2 remaining")).toBeVisible();
     await expect(page.getByText("Hint points")).toBeVisible();
     await expect(page.getByText("3", { exact: true })).toBeVisible();
 
     await page.getByRole("tab", { name: "Checks", exact: true }).click();
     await expect(page.getByText("E2E Location Alpha")).toBeVisible();
+    await expect(page.getByText("E2E Scout Target")).toBeVisible();
+
+    await page.getByRole("button", { name: "Scout" }).click();
+    await expect(page.getByText(/^Scout:/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Progression")).toBeVisible();
 
     await page.getByRole("tab", { name: "Hints" }).click();
     await expect(page.getByRole("heading", { name: "Hints", level: 2 })).toBeVisible();

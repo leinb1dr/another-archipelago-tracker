@@ -15,6 +15,12 @@ import {
   processUnknownPacket,
   type TrackerRuntimeState,
 } from "./packetHandlers";
+import {
+  filterScoutedToValidLocations,
+  loadScoutedLocations,
+  saveScoutedLocations,
+  scoutedLocationsStorageKey,
+} from "./scoutedLocationsStorage";
 
 export function useTrackerSession(options: {
   socket: WebSocket | null;
@@ -35,6 +41,15 @@ export function useTrackerSession(options: {
     let next = initTrackerState(connected);
     for (const p of session.connectBatchRest ?? []) {
       next = processUnknownPacket(next, p, session.game);
+    }
+    const validLocationIds = new Set<number>();
+    for (const id of connected.missing_locations ?? []) validLocationIds.add(id);
+    for (const id of connected.checked_locations ?? []) validLocationIds.add(id);
+    const scoutKey = scoutedLocationsStorageKey(roomInfo.seed_name, connected.team, connected.slot);
+    const storedScouts = loadScoutedLocations(scoutKey);
+    if (storedScouts) {
+      const filtered = filterScoutedToValidLocations(storedScouts, validLocationIds);
+      next = { ...next, scoutedLocations: { ...next.scoutedLocations, ...filtered } };
     }
     setTracker(next);
     setProtocolError(null);
@@ -112,6 +127,14 @@ export function useTrackerSession(options: {
       socket.removeEventListener("message", onMessage);
     };
   }, [socket, slotSession, room, bootstrapSession]);
+
+  useEffect(() => {
+    if (!tracker || !slotSession || !room) return;
+    saveScoutedLocations(
+      scoutedLocationsStorageKey(room.seed_name, slotSession.connected.team, slotSession.connected.slot),
+      tracker.scoutedLocations,
+    );
+  }, [tracker?.scoutedLocations, slotSession, room]);
 
   return { tracker, protocolError };
 }

@@ -3,6 +3,7 @@ import { slotGamesFromConnected } from "./slotGames";
 import type {
   DataPackagePacket,
   HintPacket,
+  LocationInfoPacket,
   NetworkItem,
   ReceivedItemsPacket,
   RetrievedPacket,
@@ -71,6 +72,8 @@ export type TrackerRuntimeState = {
   receivedItems: NetworkItem[];
   /** Set when `ReceivedItems.index` does not match the expected next index. */
   receivedItemsSyncError: string | null;
+  /** Location id → items revealed by `LocationInfo` (from LocationScouts). */
+  scoutedLocations: Record<number, NetworkItem[]>;
 };
 
 export function initTrackerState(connected: ConnectedPacket): TrackerRuntimeState {
@@ -86,6 +89,7 @@ export function initTrackerState(connected: ConnectedPacket): TrackerRuntimeStat
     players: connected.players ?? [],
     receivedItems: [],
     receivedItemsSyncError: null,
+    scoutedLocations: {},
   };
 }
 
@@ -178,6 +182,29 @@ export function applyReceivedItems(
   };
 }
 
+export function applyLocationInfo(
+  prev: TrackerRuntimeState,
+  packet: LocationInfoPacket,
+): TrackerRuntimeState {
+  const raw = packet.locations;
+  const items = parseNetworkItems(raw);
+  if (items.length === 0) return prev;
+
+  const byLocation = new Map<number, NetworkItem[]>();
+  for (const ni of items) {
+    const loc = ni.location;
+    const list = byLocation.get(loc) ?? [];
+    list.push(ni);
+    byLocation.set(loc, list);
+  }
+
+  const scoutedLocations = { ...prev.scoutedLocations };
+  for (const [locId, list] of byLocation) {
+    scoutedLocations[locId] = list;
+  }
+  return { ...prev, scoutedLocations };
+}
+
 export function processUnknownPacket(
   prev: TrackerRuntimeState,
   packet: unknown,
@@ -196,6 +223,8 @@ export function processUnknownPacket(
       return applySetReply(prev, packet as SetReplyPacket);
     case "ReceivedItems":
       return applyReceivedItems(prev, packet as ReceivedItemsPacket);
+    case "LocationInfo":
+      return applyLocationInfo(prev, packet as LocationInfoPacket);
     default:
       return prev;
   }
