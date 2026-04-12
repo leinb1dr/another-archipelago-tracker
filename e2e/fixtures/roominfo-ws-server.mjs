@@ -57,23 +57,21 @@ function dataPackageReply() {
   };
 }
 
-function retrievedReply(keys) {
-  const out = {
-    cmd: "Retrieved",
-    keys,
-  };
+/** Matches Archipelago `Retrieved`: `keys` is a dict of requested key → value. */
+function retrievedReply(requestedKeys) {
   const hintsKey = "_read_hints_0_1";
   const groupsKey = `_read_location_name_groups_${GAME}`;
-  if (keys.includes(hintsKey)) {
-    out[hintsKey] = [
+  const keys = {};
+  if (requestedKeys.includes(hintsKey)) {
+    keys[hintsKey] = [
       {
         receiving_player: 1,
         finding_player: 1,
         location: 100,
         item: 200,
-        found: false,
+        found: 0,
         item_flags: 1,
-        status: 1,
+        status: 30,
       },
       {
         receiving_player: 1,
@@ -85,13 +83,13 @@ function retrievedReply(keys) {
       },
     ];
   }
-  if (keys.includes(groupsKey)) {
-    out[groupsKey] = {
+  if (requestedKeys.includes(groupsKey)) {
+    keys[groupsKey] = {
       Dungeon: ["E2E Location Alpha"],
       Field: ["E2E Location Beta"],
     };
   }
-  return out;
+  return { cmd: "Retrieved", keys };
 }
 
 wss.on("connection", (socket) => {
@@ -123,6 +121,13 @@ wss.on("connection", (socket) => {
             missing_locations: [100],
             checked_locations: [101],
             hint_points: 3,
+            slot_info: {
+              1: {
+                name,
+                game: GAME,
+                type: 1,
+              },
+            },
           });
         }
         if (p.cmd === "GetDataPackage") {

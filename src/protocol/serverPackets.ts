@@ -23,9 +23,10 @@ export type DataPackageContents = {
   >;
 };
 
+/** Server → client: values live under `keys` (see network protocol Retrieved). */
 export interface RetrievedPacket {
   cmd: "Retrieved";
-  keys?: string[];
+  keys?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -47,11 +48,13 @@ export interface HintPacket {
   status?: number;
 }
 
+/** Matches Archipelago `NetUtils.HintStatus` (IntEnum). */
 export const HINT_STATUS = {
   HINT_UNSPECIFIED: 0,
-  HINT_PRIORITY: 1,
-  HINT_AVOID: 2,
-  HINT_FOUND: 3,
+  HINT_NO_PRIORITY: 10,
+  HINT_AVOID: 20,
+  HINT_PRIORITY: 30,
+  HINT_FOUND: 40,
 } as const;
 
 export interface PrintJsonPacket {

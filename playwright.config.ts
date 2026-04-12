@@ -4,6 +4,8 @@ const baseURL = "http://127.0.0.1:5173";
 
 export default defineConfig({
   testDir: "e2e",
+  /** Live deployment specs use playwright.live.config.ts only. */
+  testIgnore: "**/live/**",
   forbidOnly: !!process.env.CI,
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,

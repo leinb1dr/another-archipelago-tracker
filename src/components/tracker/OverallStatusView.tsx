@@ -9,8 +9,9 @@ import Typography from "@mui/material/Typography";
 import type { SlotSession } from "../../protocol/connectPackets";
 import { completionRatio } from "../../tracker/locationState";
 import type { TrackerRuntimeState } from "../../tracker/packetHandlers";
-import { itemHasProgressionFlag, isPriorityHint } from "../../tracker/hintUtils";
+import { isPriorityHint } from "../../tracker/hintUtils";
 import { resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
+import { gameForHintItem, gameForHintLocation } from "../../tracker/slotGames";
 
 export type OverallStatusViewProps = {
   slotSession: SlotSession;
@@ -18,14 +19,12 @@ export type OverallStatusViewProps = {
 };
 
 export function OverallStatusView({ slotSession, tracker }: OverallStatusViewProps) {
-  const { location, mapsByGame, hints } = tracker;
+  const { location, mapsByGame, hints, slotGames } = tracker;
   const maps = mapsByGame[slotSession.game];
   const pct = completionRatio(location);
   const pctLabel = pct === null ? "—" : `${Math.round(pct * 1000) / 10}%`;
 
-  const priorityEntries = hints.filter(
-    (h) => isPriorityHint(h) || itemHasProgressionFlag(h.item_flags),
-  );
+  const priorityEntries = hints.filter((h) => isPriorityHint(h) && !h.found);
 
   return (
     <Card variant="outlined">
@@ -58,7 +57,7 @@ export function OverallStatusView({ slotSession, tracker }: OverallStatusViewPro
           </Stack>
           <Stack spacing={0.5}>
             <Typography variant="subtitle2" color="text.secondary">
-              Priority hints / progression
+              Open priority hints
             </Typography>
             {!maps ? (
               <Typography variant="body2" color="text.secondary">
@@ -66,17 +65,23 @@ export function OverallStatusView({ slotSession, tracker }: OverallStatusViewPro
               </Typography>
             ) : priorityEntries.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                No priority-tagged hints yet.
+                No unfound priority hints.
               </Typography>
             ) : (
               <List dense disablePadding>
                 {priorityEntries.slice(0, 12).map((h, i) => (
                   <ListItem key={`${h.location}-${h.item}-${i}`} disableGutters sx={{ py: 0.25 }}>
                     <ListItemText
-                      primary={resolveItemName(mapsByGame, h.item)}
-                      secondary={`${resolveLocationName(mapsByGame, slotSession.game, h.location)} · ${
-                        h.found ? "Found" : "Not found"
-                      }`}
+                      primary={resolveItemName(
+                        mapsByGame,
+                        h.item,
+                        gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                      )}
+                      secondary={resolveLocationName(
+                        mapsByGame,
+                        gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                        h.location,
+                      )}
                     />
                   </ListItem>
                 ))}

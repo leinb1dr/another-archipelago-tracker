@@ -20,10 +20,19 @@ export function resolveLocationName(
   return `#${locationId}`;
 }
 
+/**
+ * Resolves an item id to a display name.
+ * When `preferredGame` is set (hint receiver's world), that game's map is tried before any fallback.
+ */
 export function resolveItemName(
   mapsByGame: Record<string, IdNameMaps>,
   itemId: number,
+  preferredGame?: string | null,
 ): string {
+  if (preferredGame !== undefined && preferredGame !== null && preferredGame !== "") {
+    const fromPreferred = mapsByGame[preferredGame]?.itemIdToName[itemId];
+    if (fromPreferred) return fromPreferred;
+  }
   for (const m of Object.values(mapsByGame)) {
     const n = m.itemIdToName[itemId];
     if (n) return n;

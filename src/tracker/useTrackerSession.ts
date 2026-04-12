@@ -36,6 +36,7 @@ export function useTrackerSession(options: {
   const [tracker, setTracker] = useState<TrackerRuntimeState | null>(null);
   const [protocolError, setProtocolError] = useState<string | null>(null);
   const sessionKeyRef = useRef<string>("");
+  const deferredHintsGetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const bootstrapSession = useCallback((ws: WebSocket, session: SlotSession, roomInfo: RoomInfo) => {
     const connected = session.connected;
@@ -57,6 +58,10 @@ export function useTrackerSession(options: {
 
   useEffect(() => {
     if (!socket || !slotSession || !room) {
+      if (deferredHintsGetRef.current) {
+        clearTimeout(deferredHintsGetRef.current);
+        deferredHintsGetRef.current = null;
+      }
       setTracker(null);
       sessionKeyRef.current = "";
       return;
@@ -98,8 +103,17 @@ export function useTrackerSession(options: {
     socket.addEventListener("message", onMessage);
     if (isNew) {
       bootstrapSession(socket, slotSession, room);
+      const hk = readHintsStorageKey(slotSession.connected.team, slotSession.connected.slot);
+      deferredHintsGetRef.current = setTimeout(() => {
+        deferredHintsGetRef.current = null;
+        sendPacket(socket, buildGetPacket([hk]));
+      }, 400);
     }
     return () => {
+      if (deferredHintsGetRef.current) {
+        clearTimeout(deferredHintsGetRef.current);
+        deferredHintsGetRef.current = null;
+      }
       socket.removeEventListener("message", onMessage);
     };
   }, [socket, slotSession, room, bootstrapSession]);

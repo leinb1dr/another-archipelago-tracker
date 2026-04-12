@@ -1,27 +1,47 @@
 import type { HintPacket } from "../protocol/serverPackets";
 import { HINT_STATUS } from "../protocol/serverPackets";
 
+function coerceFiniteInt(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return Math.trunc(n);
+  }
+  return undefined;
+}
+
+/** `found` may be omitted, or sent as 0/1 by some serializers. */
+function coerceFound(v: unknown): boolean {
+  if (v === true || v === false) return v;
+  if (v === 0 || v === 1) return v === 1;
+  return false;
+}
+
 export function parseHintList(raw: unknown): HintPacket[] {
   if (!Array.isArray(raw)) return [];
   const out: HintPacket[] = [];
   for (const h of raw) {
     if (h === null || typeof h !== "object") continue;
     const o = h as Record<string, unknown>;
+    const receiving_player = coerceFiniteInt(o.receiving_player);
+    const finding_player = coerceFiniteInt(o.finding_player);
+    const location = coerceFiniteInt(o.location);
+    const item = coerceFiniteInt(o.item);
     if (
-      typeof o.receiving_player !== "number" ||
-      typeof o.finding_player !== "number" ||
-      typeof o.location !== "number" ||
-      typeof o.item !== "number" ||
-      typeof o.found !== "boolean"
+      receiving_player === undefined ||
+      finding_player === undefined ||
+      location === undefined ||
+      item === undefined
     ) {
       continue;
     }
+    const found = coerceFound(o.found);
     out.push({
-      receiving_player: o.receiving_player,
-      finding_player: o.finding_player,
-      location: o.location,
-      item: o.item,
-      found: o.found,
+      receiving_player,
+      finding_player,
+      location,
+      item,
+      found,
       entrance: typeof o.entrance === "string" ? o.entrance : undefined,
       item_flags: typeof o.item_flags === "number" ? o.item_flags : undefined,
       status: typeof o.status === "number" ? o.status : undefined,
@@ -46,4 +66,22 @@ export function isPriorityHint(h: HintPacket): boolean {
 export function itemHasProgressionFlag(flags: number | undefined): boolean {
   if (flags === undefined) return false;
   return (flags & 0b001) !== 0;
+}
+
+export function hintStatusLabel(status: number | undefined): string {
+  if (status === undefined) return "—";
+  switch (status) {
+    case HINT_STATUS.HINT_UNSPECIFIED:
+      return "Unspecified";
+    case HINT_STATUS.HINT_NO_PRIORITY:
+      return "No priority";
+    case HINT_STATUS.HINT_AVOID:
+      return "Avoid";
+    case HINT_STATUS.HINT_PRIORITY:
+      return "Priority";
+    case HINT_STATUS.HINT_FOUND:
+      return "Found";
+    default:
+      return String(status);
+  }
 }

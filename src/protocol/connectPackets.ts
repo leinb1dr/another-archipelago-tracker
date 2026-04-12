@@ -26,6 +26,13 @@ export interface NetworkPlayer {
   class?: string;
 }
 
+/** From `Connected.slot_info` — maps each slot to static slot metadata (see upstream protocol). */
+export type NetworkSlotInfo = {
+  name: string;
+  game: string;
+  type?: number;
+};
+
 export interface ConnectedPacket {
   cmd: "Connected";
   team: number;
@@ -34,6 +41,8 @@ export interface ConnectedPacket {
   missing_locations?: number[];
   checked_locations?: number[];
   hint_points?: number;
+  /** Slot index → game name and other metadata; keys may be string or number in JSON. */
+  slot_info?: Record<string | number, NetworkSlotInfo>;
 }
 
 /** Active tracker sign-in after a successful `Connect` / `Connected` handshake. */

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { HINT_STATUS } from "../protocol/serverPackets";
 import type { HintPacket } from "../protocol/serverPackets";
 import {
+  hintStatusLabel,
   hintsForFindingPlayer,
   hintsForReceivingPlayer,
+  isPriorityHint,
   parseHintList,
 } from "./hintUtils";
 
@@ -21,8 +24,61 @@ describe("parseHintList", () => {
     expect(hints[0].receiving_player).toBe(1);
   });
 
+  it("coerces found 0 and 1", () => {
+    const hints = parseHintList([
+      {
+        receiving_player: 1,
+        finding_player: 1,
+        location: 1,
+        item: 2,
+        found: 0,
+      },
+      {
+        receiving_player: 1,
+        finding_player: 1,
+        location: 2,
+        item: 3,
+        found: 1,
+      },
+    ]);
+    expect(hints[0].found).toBe(false);
+    expect(hints[1].found).toBe(true);
+  });
+
+  it("defaults missing found to false", () => {
+    const hints = parseHintList([
+      {
+        receiving_player: 1,
+        finding_player: 1,
+        location: 1,
+        item: 2,
+      },
+    ]);
+    expect(hints).toHaveLength(1);
+    expect(hints[0].found).toBe(false);
+  });
+
   it("ignores invalid entries", () => {
     expect(parseHintList([{}])).toEqual([]);
+  });
+});
+
+describe("hintStatusLabel and isPriorityHint", () => {
+  it("labels upstream HintStatus values", () => {
+    expect(hintStatusLabel(HINT_STATUS.HINT_PRIORITY)).toBe("Priority");
+    expect(hintStatusLabel(HINT_STATUS.HINT_NO_PRIORITY)).toBe("No priority");
+  });
+
+  it("isPriorityHint uses status 30", () => {
+    const h: HintPacket = {
+      receiving_player: 1,
+      finding_player: 1,
+      location: 1,
+      item: 1,
+      found: false,
+      status: HINT_STATUS.HINT_PRIORITY,
+    };
+    expect(isPriorityHint(h)).toBe(true);
   });
 });
 
