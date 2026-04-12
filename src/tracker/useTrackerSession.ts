@@ -15,11 +15,10 @@ import {
   processUnknownPacket,
   type TrackerRuntimeState,
 } from "./packetHandlers";
-import { hintStableKey } from "./hintUtils";
 import {
-  hintLastVisitStorageKey,
-  saveHintKeysForNextVisit,
-} from "./hintLastVisitStorage";
+  checkedLocationsLastVisitStorageKey,
+  saveCheckedIdsForNextVisit,
+} from "./checkedLocationsLastVisitStorage";
 import {
   filterScoutedToValidLocations,
   loadScoutedLocations,
@@ -138,7 +137,7 @@ export function useTrackerSession(options: {
 
   useEffect(() => {
     if (!room || !slotSession) return;
-    const storageKey = hintLastVisitStorageKey(
+    const storageKey = checkedLocationsLastVisitStorageKey(
       room.seed_name,
       slotSession.connected.team,
       slotSession.connected.slot,
@@ -146,10 +145,7 @@ export function useTrackerSession(options: {
     return () => {
       const t = trackerRef.current;
       if (!t) return;
-      saveHintKeysForNextVisit(
-        storageKey,
-        t.hints.map((h) => hintStableKey(h)),
-      );
+      saveCheckedIdsForNextVisit(storageKey, t.location.checkedLocationIds);
     };
   }, [room, slotSession]);
 

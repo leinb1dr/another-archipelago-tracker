@@ -33,7 +33,14 @@ test.describe("connection", () => {
 
     await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
-    await expect(page.getByText("Archipeladoku")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pick Me Game" })).toBeVisible();
+
+    const messageLog = page.getByRole("region", { name: "Message log" });
+    await expect(messageLog).toBeVisible();
+    await expect(messageLog).toContainText("RoomInfo");
+    await expect(messageLog).toContainText("integration-ws-seed");
+    await expect(messageLog).toContainText("Pick Me Game");
+
     assertNoPageErrors();
   });
 
@@ -44,12 +51,12 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByRole("button", { name: "Archipeladoku" }).click();
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page.getByText("Connected as Dandoku.")).toBeVisible();
-    await expect(page.getByText(/Dandoku · Archipeladoku/)).toBeVisible();
+    await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
@@ -106,7 +113,7 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByRole("button", { name: "Archipeladoku" }).click();
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();

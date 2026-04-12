@@ -16,6 +16,7 @@ import {
   CONNECTION_FAILED_MESSAGE,
   connectAndAwaitRoomInfo,
 } from "./connection/connectArchipelago";
+import { useInboundMessageLog } from "./connection/useInboundMessageLog";
 import {
   loadRecentGameSignIns,
   removeRecentGameSignIn,
@@ -29,6 +30,7 @@ import {
   type RecentConnection,
 } from "./connection/recentConnectionsStorage";
 import { ConnectionView } from "./components/ConnectionView";
+import { MessageLogPanel } from "./components/MessageLogPanel";
 import { RoomInfoView } from "./components/RoomInfoView";
 import { SessionStatusDialog } from "./components/SessionStatusDialog";
 import { TrackerShell } from "./components/TrackerShell";
@@ -66,6 +68,12 @@ function App() {
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
   const [recentGameSignIns, setRecentGameSignIns] = useState<RecentGameSignIn[]>([]);
+  const [sessionHandshakeRaw, setSessionHandshakeRaw] = useState<string | null>(null);
+
+  const { entries: messageLogEntries, clear: clearMessageLog } = useInboundMessageLog(
+    sessionSocket,
+    sessionHandshakeRaw,
+  );
 
   useEffect(() => {
     setRecentConnections(loadRecentConnections());
@@ -94,9 +102,10 @@ function App() {
     setConnecting(true);
     try {
       const url = buildArchipelagoWsUrl(nextHost, nextPort);
-      const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
+      const { room: nextRoom, socket, firstMessageRaw } = await connectAndAwaitRoomInfo(url);
       setSlotSession(null);
       setRoom(nextRoom);
+      setSessionHandshakeRaw(firstMessageRaw);
       setSessionSocket(socket);
       upsertRecentConnection(nextHost, nextPort);
       setRecentConnections(loadRecentConnections());
@@ -120,8 +129,9 @@ function App() {
     sessionSocket.close();
     try {
       const url = buildArchipelagoWsUrl(host, port);
-      const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
+      const { room: nextRoom, socket, firstMessageRaw } = await connectAndAwaitRoomInfo(url);
       setRoom(nextRoom);
+      setSessionHandshakeRaw(firstMessageRaw);
       setSessionSocket(socket);
       upsertRecentConnection(host, port);
       setRecentConnections(loadRecentConnections());
@@ -129,6 +139,7 @@ function App() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
       setRoom(null);
+      setSessionHandshakeRaw(null);
       setSessionSocket(null);
       setFormError(msg);
     } finally {
@@ -137,7 +148,15 @@ function App() {
   }, [host, port, sessionSocket]);
 
   return (
-    <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box
+      sx={{
+        flexGrow: 1,
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <AppBar position="static" elevation={1}>
         <Toolbar>
           <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
@@ -173,70 +192,89 @@ function App() {
           ) : null}
         </Toolbar>
       </AppBar>
-      <Container maxWidth="md" sx={{ py: 4 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          flexDirection: { xs: "column", md: "row" },
+        }}
+      >
         {room && sessionSocket ? (
-          slotSession ? (
-            <TrackerShell
-              room={room}
-              socket={sessionSocket}
-              slotSession={slotSession}
-              reconnecting={roomReconnecting}
-            />
+          <MessageLogPanel entries={messageLogEntries} onClear={clearMessageLog} />
+        ) : null}
+        <Container
+          maxWidth="md"
+          sx={{
+            py: 4,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {room && sessionSocket ? (
+            slotSession ? (
+              <TrackerShell
+                room={room}
+                socket={sessionSocket}
+                slotSession={slotSession}
+                reconnecting={roomReconnecting}
+              />
+            ) : (
+              <RoomInfoView
+                room={room}
+                socket={sessionSocket}
+                reconnecting={roomReconnecting}
+                serverHost={host}
+                serverPort={port}
+                recentGameSignIns={recentGameSignIns}
+                onDeleteGameSignIn={(entry) => {
+                  removeRecentGameSignIn(entry);
+                  setRecentGameSignIns(loadRecentGameSignIns());
+                }}
+                onSlotConnected={({ message, session, slotNameUsed }) => {
+                  upsertRecentGameSignIn({
+                    host,
+                    port,
+                    game: session.game,
+                    slotName: slotNameUsed,
+                  });
+                  setRecentGameSignIns(loadRecentGameSignIns());
+                  setSnackbarMessage(message);
+                  setSlotSession(session);
+                }}
+              />
+            )
           ) : (
-            <RoomInfoView
-              room={room}
-              socket={sessionSocket}
-              reconnecting={roomReconnecting}
-              serverHost={host}
-              serverPort={port}
-              recentGameSignIns={recentGameSignIns}
-              onDeleteGameSignIn={(entry) => {
-                removeRecentGameSignIn(entry);
-                setRecentGameSignIns(loadRecentGameSignIns());
+            <ConnectionView
+              host={host}
+              port={port}
+              hostError={hostError}
+              portError={portError}
+              connecting={connecting}
+              formError={formError}
+              recentConnections={recentConnections}
+              onHostChange={(v) => {
+                setHost(v);
+                if (hostError) setHostError("");
+                if (formError) setFormError(null);
               }}
-              onSlotConnected={({ message, session, slotNameUsed }) => {
-                upsertRecentGameSignIn({
-                  host,
-                  port,
-                  game: session.game,
-                  slotName: slotNameUsed,
-                });
-                setRecentGameSignIns(loadRecentGameSignIns());
-                setSnackbarMessage(message);
-                setSlotSession(session);
+              onPortChange={(v) => {
+                setPort(v);
+                if (portError) setPortError("");
+                if (formError) setFormError(null);
+              }}
+              onSubmit={handleConnect}
+              onConnectRecent={(rec) => {
+                void runConnect(rec.host, rec.port);
+              }}
+              onDeleteRecent={(rec) => {
+                removeRecentConnection(rec.host, rec.port);
+                setRecentConnections(loadRecentConnections());
               }}
             />
-          )
-        ) : (
-          <ConnectionView
-            host={host}
-            port={port}
-            hostError={hostError}
-            portError={portError}
-            connecting={connecting}
-            formError={formError}
-            recentConnections={recentConnections}
-            onHostChange={(v) => {
-              setHost(v);
-              if (hostError) setHostError("");
-              if (formError) setFormError(null);
-            }}
-            onPortChange={(v) => {
-              setPort(v);
-              if (portError) setPortError("");
-              if (formError) setFormError(null);
-            }}
-            onSubmit={handleConnect}
-            onConnectRecent={(rec) => {
-              void runConnect(rec.host, rec.port);
-            }}
-            onDeleteRecent={(rec) => {
-              removeRecentConnection(rec.host, rec.port);
-              setRecentConnections(loadRecentConnections());
-            }}
-          />
-        )}
-      </Container>
+          )}
+        </Container>
+      </Box>
 
       <Snackbar
         open={Boolean(snackbarMessage)}

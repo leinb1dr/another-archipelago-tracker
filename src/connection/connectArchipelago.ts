@@ -15,6 +15,8 @@ export const CONNECTION_FAILED_MESSAGE = "Could not connect." as const;
 export type RoomSocketSession = {
   room: RoomInfo;
   socket: WebSocket;
+  /** Raw JSON text of the first inbound frame (RoomInfo handshake). */
+  firstMessageRaw: string;
 };
 
 /**
@@ -54,7 +56,7 @@ export function connectAndAwaitRoomInfo(url: string): Promise<RoomSocketSession>
         settled = true;
         window.clearTimeout(timer);
         ws.removeEventListener("message", onFirstMessage);
-        resolve({ room, socket: ws });
+        resolve({ room, socket: ws, firstMessageRaw: raw });
       } catch {
         fail();
       }
