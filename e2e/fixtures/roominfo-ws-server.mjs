@@ -101,9 +101,11 @@ wss.on("connection", (socket) => {
       if (!Array.isArray(data)) return;
       const reply = [];
 
+      let connectJustHandled = false;
       for (const p of data) {
         if (!p || typeof p !== "object") continue;
         if (p.cmd === "Connect") {
+          connectJustHandled = true;
           const name = typeof p.name === "string" ? p.name : "Player";
           reply.push({
             cmd: "Connected",
@@ -129,18 +131,6 @@ wss.on("connection", (socket) => {
               },
             },
           });
-          reply.push({
-            cmd: "ReceivedItems",
-            index: 0,
-            items: [
-              {
-                item: 201,
-                location: 100,
-                player: 1,
-                flags: 0,
-              },
-            ],
-          });
         }
         if (p.cmd === "GetDataPackage") {
           reply.push(dataPackageReply());
@@ -152,6 +142,29 @@ wss.on("connection", (socket) => {
 
       if (reply.length) {
         socket.send(JSON.stringify(reply));
+      }
+      if (connectJustHandled) {
+        const receivedItemsPacket = [
+          {
+            cmd: "ReceivedItems",
+            index: 0,
+            items: [
+              {
+                item: 201,
+                location: 100,
+                player: 1,
+                flags: 0,
+              },
+            ],
+          },
+        ];
+        setTimeout(() => {
+          try {
+            socket.send(JSON.stringify(receivedItemsPacket));
+          } catch {
+            /* ignore */
+          }
+        }, 50);
       }
     } catch {
       /* ignore */

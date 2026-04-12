@@ -62,7 +62,7 @@ export function ReceivedChecksView({ slotSession, tracker }: ReceivedChecksViewP
       const locLabel =
         ni.location <= 0
           ? formatNetworkId(ni.location)
-          : resolveLocationName(mapsByGame, finderGame ?? null, ni.location);
+          : resolveLocationName(mapsByGame, finderGame ?? slotSession.game, ni.location);
       const fromLabel = playerAlias(players, ni.player);
       return { index, itemLabel, locLabel, fromLabel, raw: ni };
     });

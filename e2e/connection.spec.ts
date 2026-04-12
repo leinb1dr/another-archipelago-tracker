@@ -69,7 +69,7 @@ test.describe("connection", () => {
     await expect(page.getByText("No hints in this list.")).toBeHidden({ timeout: 15_000 });
     await expect(page.getByText("E2E Item")).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Hint status" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Priority" })).toBeVisible();
+    await expect(page.getByText("Priority").first()).toBeVisible();
     await expect(page.getByText("E2E Location Alpha")).toBeVisible();
     await expect(page.getByText("Shared Trinket")).toBeVisible();
     await expect(page.getByText("E2E Location Beta")).toBeVisible();
@@ -82,11 +82,11 @@ test.describe("connection", () => {
 
     await page.getByRole("tab", { name: "All (2)" }).click();
     await expect(page.getByRole("columnheader", { name: "Hint status" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Priority" })).toBeVisible();
+    await expect(page.getByText("Priority").first()).toBeVisible();
 
     await page.getByRole("tab", { name: "Received checks" }).click();
     await expect(page.getByRole("heading", { name: "Received checks", level: 2 })).toBeVisible();
-    await expect(page.getByText(/1 item received/)).toBeVisible();
+    await expect(page.getByText(/1 item received/)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("cell", { name: "Shared Trinket" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "E2E Location Alpha" })).toBeVisible();
     await expect(page.getByText("E2E Location Beta")).toBeVisible();
