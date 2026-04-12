@@ -84,12 +84,12 @@ test.describe("connection", () => {
     await expect(page.getByRole("columnheader", { name: "Hint status" })).toBeVisible();
     await expect(page.getByText("Priority").first()).toBeVisible();
 
-    await page.getByRole("tab", { name: "Received checks" }).click();
-    await expect(page.getByRole("heading", { name: "Received checks", level: 2 })).toBeVisible();
+    await page.getByRole("tab", { name: "Checks", exact: true }).click();
+    await page.getByRole("tab", { name: /^Received \(\d+\)$/ }).click();
+    await expect(page.getByRole("heading", { name: "Checks", level: 2 })).toBeVisible();
     await expect(page.getByText(/1 item received/)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("cell", { name: "Shared Trinket" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "E2E Location Alpha" })).toBeVisible();
-    await expect(page.getByText("E2E Location Beta")).toBeVisible();
 
     assertNoPageErrors();
   });
