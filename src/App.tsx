@@ -16,6 +16,18 @@ import {
   CONNECTION_FAILED_MESSAGE,
   connectAndAwaitRoomInfo,
 } from "./connection/connectArchipelago";
+import {
+  loadRecentGameSignIns,
+  removeRecentGameSignIn,
+  upsertRecentGameSignIn,
+  type RecentGameSignIn,
+} from "./connection/recentGameSignInsStorage";
+import {
+  loadRecentConnections,
+  removeRecentConnection,
+  upsertRecentConnection,
+  type RecentConnection,
+} from "./connection/recentConnectionsStorage";
 import { ConnectionView } from "./components/ConnectionView";
 import { RoomInfoView } from "./components/RoomInfoView";
 import { SessionStatusDialog } from "./components/SessionStatusDialog";
@@ -52,6 +64,13 @@ function App() {
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [roomReconnecting, setRoomReconnecting] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
+  const [recentGameSignIns, setRecentGameSignIns] = useState<RecentGameSignIn[]>([]);
+
+  useEffect(() => {
+    setRecentConnections(loadRecentConnections());
+    setRecentGameSignIns(loadRecentGameSignIns());
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -59,28 +78,39 @@ function App() {
     };
   }, [sessionSocket]);
 
-  const handleConnect = useCallback(async () => {
-    const he = validateHost(host);
-    const pe = validatePort(port);
+  const runConnect = useCallback(async (hostRaw: string, portRaw: string) => {
+    const he = validateHost(hostRaw);
+    const pe = validatePort(portRaw);
     setHostError(he);
     setPortError(pe);
     if (he || pe) return;
 
+    const nextHost = normalizeHost(hostRaw);
+    const nextPort = portRaw.trim();
+    setHost(nextHost);
+    setPort(nextPort);
+
     setFormError(null);
     setConnecting(true);
     try {
-      const url = buildArchipelagoWsUrl(host, port);
+      const url = buildArchipelagoWsUrl(nextHost, nextPort);
       const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
       setSlotSession(null);
       setRoom(nextRoom);
       setSessionSocket(socket);
+      upsertRecentConnection(nextHost, nextPort);
+      setRecentConnections(loadRecentConnections());
     } catch (e) {
       const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
       setFormError(msg);
     } finally {
       setConnecting(false);
     }
-  }, [host, port]);
+  }, []);
+
+  const handleConnect = useCallback(() => {
+    void runConnect(host, port);
+  }, [host, port, runConnect]);
 
   const performSlotLogout = useCallback(async () => {
     if (!sessionSocket) return;
@@ -93,6 +123,8 @@ function App() {
       const { room: nextRoom, socket } = await connectAndAwaitRoomInfo(url);
       setRoom(nextRoom);
       setSessionSocket(socket);
+      upsertRecentConnection(host, port);
+      setRecentConnections(loadRecentConnections());
       setSnackbarMessage("Reconnected to room. You can sign in to a slot when ready.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
@@ -155,7 +187,21 @@ function App() {
               room={room}
               socket={sessionSocket}
               reconnecting={roomReconnecting}
-              onSlotConnected={({ message, session }) => {
+              serverHost={host}
+              serverPort={port}
+              recentGameSignIns={recentGameSignIns}
+              onDeleteGameSignIn={(entry) => {
+                removeRecentGameSignIn(entry);
+                setRecentGameSignIns(loadRecentGameSignIns());
+              }}
+              onSlotConnected={({ message, session, slotNameUsed }) => {
+                upsertRecentGameSignIn({
+                  host,
+                  port,
+                  game: session.game,
+                  slotName: slotNameUsed,
+                });
+                setRecentGameSignIns(loadRecentGameSignIns());
                 setSnackbarMessage(message);
                 setSlotSession(session);
               }}
@@ -169,6 +215,7 @@ function App() {
             portError={portError}
             connecting={connecting}
             formError={formError}
+            recentConnections={recentConnections}
             onHostChange={(v) => {
               setHost(v);
               if (hostError) setHostError("");
@@ -180,6 +227,13 @@ function App() {
               if (formError) setFormError(null);
             }}
             onSubmit={handleConnect}
+            onConnectRecent={(rec) => {
+              void runConnect(rec.host, rec.port);
+            }}
+            onDeleteRecent={(rec) => {
+              removeRecentConnection(rec.host, rec.port);
+              setRecentConnections(loadRecentConnections());
+            }}
           />
         )}
       </Container>

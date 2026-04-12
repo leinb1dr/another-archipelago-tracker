@@ -1,4 +1,6 @@
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import LinearProgress from "@mui/material/LinearProgress";
 import CardContent from "@mui/material/CardContent";
@@ -6,14 +8,24 @@ import CardHeader from "@mui/material/CardHeader";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useState } from "react";
-import type { SlotSession } from "../protocol/connectPackets";
+import { useCallback, useMemo, useState } from "react";
+import { sendConnectAndAwaitOutcome } from "../connection/sendConnect";
+import {
+  filterGameSignInsForServer,
+  type RecentGameSignIn,
+} from "../connection/recentGameSignInsStorage";
+import {
+  buildConnectPacket,
+  findPlayerForSlot,
+  type SlotSession,
+} from "../protocol/connectPackets";
 import type { RoomInfo } from "../protocol/roomInfo";
-import { RegisterSlotDialog } from "./RegisterSlotDialog";
+import { RegisterSlotDialog, type SlotConnectedPayload } from "./RegisterSlotDialog";
 
 function formatVersion(v: { major: number; minor: number; build: number }): string {
   return `${v.major}.${v.minor}.${v.build}`;
@@ -23,17 +35,83 @@ export type RoomInfoViewProps = {
   room: RoomInfo;
   socket: WebSocket;
   reconnecting?: boolean;
-  onSlotConnected: (payload: { message: string; session: SlotSession }) => void;
+  /** Current server (must match stored entries to show saved sign-ins). */
+  serverHost: string;
+  serverPort: string;
+  recentGameSignIns: RecentGameSignIn[];
+  onDeleteGameSignIn: (entry: RecentGameSignIn) => void;
+  onSlotConnected: (payload: SlotConnectedPayload) => void;
 };
 
 export function RoomInfoView({
   room,
   socket,
   reconnecting = false,
+  serverHost,
+  serverPort,
+  recentGameSignIns,
+  onDeleteGameSignIn,
   onSlotConnected,
 }: RoomInfoViewProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [quickSignInKey, setQuickSignInKey] = useState<string | null>(null);
+  const [quickSignInError, setQuickSignInError] = useState<string | null>(null);
+
+  const quickSignIn = useCallback(
+    async (entry: RecentGameSignIn) => {
+      const slotName = entry.slotName.trim();
+      const gameTitle = entry.game.trim();
+      if (!slotName || !gameTitle) return;
+      setQuickSignInError(null);
+      if (socket.readyState !== WebSocket.OPEN) {
+        setQuickSignInError("Connection is not available.");
+        return;
+      }
+
+      const key = `${gameTitle}:${slotName}`;
+      setQuickSignInKey(key);
+      try {
+        const packet = buildConnectPacket({
+          name: slotName,
+          game: gameTitle,
+          password: undefined,
+          version: room.version,
+        });
+        const result = await sendConnectAndAwaitOutcome(socket, packet);
+        if (result.outcome === "refused") {
+          const errs = result.refused.errors?.length
+            ? result.refused.errors.join(", ")
+            : "Connection refused.";
+          setQuickSignInError(errs);
+          return;
+        }
+        const player = findPlayerForSlot(result.connected);
+        const display = player?.alias ?? player?.name ?? slotName;
+        const session: SlotSession = {
+          game: gameTitle,
+          displayName: display,
+          connected: result.connected,
+          connectBatchRest: result.connectBatchRest,
+        };
+        onSlotConnected({
+          message: `Connected as ${display}.`,
+          session,
+          slotNameUsed: slotName,
+        });
+      } catch (e) {
+        setQuickSignInError(e instanceof Error ? e.message : "Could not complete sign-in.");
+      } finally {
+        setQuickSignInKey(null);
+      }
+    },
+    [onSlotConnected, room.version, socket],
+  );
+
+  const savedForThisServer = useMemo(
+    () => filterGameSignInsForServer(recentGameSignIns, serverHost, serverPort),
+    [recentGameSignIns, serverHost, serverPort],
+  );
 
   const serverTime =
     typeof room.time === "number" && Number.isFinite(room.time)
@@ -122,6 +200,74 @@ export function RoomInfoView({
 
           <Divider />
 
+          {savedForThisServer.length > 0 ? (
+            <>
+              <Typography variant="subtitle2" color="text.secondary">
+                Previously signed-in games ({savedForThisServer.length})
+              </Typography>
+              {quickSignInError ? (
+                <Alert severity="error" role="alert" onClose={() => setQuickSignInError(null)}>
+                  {quickSignInError}
+                </Alert>
+              ) : null}
+              <Box
+                sx={{
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 1,
+                }}
+              >
+                <List dense disablePadding>
+                  {savedForThisServer.map((entry) => (
+                    <ListItem
+                      key={`${entry.game}:${entry.slotName}`}
+                      secondaryAction={
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                          <Button
+                            type="button"
+                            size="small"
+                            variant="contained"
+                            disabled={
+                              reconnecting ||
+                              Boolean(quickSignInKey) ||
+                              dialogOpen
+                            }
+                            onClick={() => void quickSignIn(entry)}
+                          >
+                            {quickSignInKey === `${entry.game.trim()}:${entry.slotName.trim()}`
+                              ? "Signing in…"
+                              : "Sign in"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="small"
+                            color="inherit"
+                            disabled={reconnecting || Boolean(quickSignInKey)}
+                            onClick={() => onDeleteGameSignIn(entry)}
+                            aria-label={`Delete saved sign-in ${entry.game} ${entry.slotName}`}
+                          >
+                            Delete
+                          </Button>
+                        </Stack>
+                      }
+                      sx={{ pr: 22 }}
+                    >
+                      <ListItemText
+                        primary={<Typography variant="body2">{entry.game}</Typography>}
+                        secondary={
+                          <Typography component="span" variant="caption" color="text.secondary">
+                            Slot: {entry.slotName}
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+              <Divider />
+            </>
+          ) : null}
+
           <Typography variant="subtitle2" color="text.secondary">
             Games ({room.games.length}) — click a game to sign in
           </Typography>
@@ -138,7 +284,7 @@ export function RoomInfoView({
               {room.games.map((name, index) => (
                 <ListItemButton
                   key={`${index}-${name}`}
-                  disabled={reconnecting}
+                  disabled={reconnecting || Boolean(quickSignInKey)}
                   onClick={() => {
                     setSelectedGame(name);
                     setDialogOpen(true);
