@@ -159,9 +159,35 @@ function App() {
     >
       <AppBar position="static" elevation={1}>
         <Toolbar>
-          <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
-            Archipelago Tracker
-          </Typography>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: "baseline", minWidth: 0, flexShrink: 1 }}
+          >
+            <Typography variant="h6" component="h1" sx={{ flexShrink: 0 }}>
+              Archipelago Tracker
+            </Typography>
+            {sessionSocket ? (
+              <Typography
+                component="span"
+                variant="body2"
+                color="inherit"
+                sx={{
+                  opacity: 0.85,
+                  fontFamily: "monospace",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
+                  maxWidth: { xs: 140, sm: 280, md: 360 },
+                }}
+                title={`${host}:${port}`}
+              >
+                {host}:{port}
+              </Typography>
+            ) : null}
+          </Stack>
+          <Box sx={{ flexGrow: 1 }} />
           {slotSession ? (
             <Stack direction="row" spacing={1} sx={{ alignItems: "center", maxWidth: "min(100%, 420px)" }}>
               <Typography

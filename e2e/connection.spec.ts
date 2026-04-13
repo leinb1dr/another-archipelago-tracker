@@ -32,6 +32,7 @@ test.describe("connection", () => {
     await page.getByRole("button", { name: "Connect" }).click();
 
     await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
+    await expect(page.getByRole("banner")).toContainText("127.0.0.1:53087");
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
     await expect(page.getByRole("button", { name: "Pick Me Game" })).toBeVisible();
 
