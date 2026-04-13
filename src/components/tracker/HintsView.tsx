@@ -297,7 +297,7 @@ export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
         if (!matchMultiSelect(f.finder, playerAlias(players, h.finding_player))) {
           return false;
         }
-        if (!matchMultiSelect(f.checked, h.found ? "Yes" : "No")) {
+        if (!matchMultiSelect(f.checked, h.found ? "Found" : "Open")) {
           return false;
         }
         if (!matchMultiSelect(f.status, hintStatusLabel(h.status))) {
@@ -462,8 +462,8 @@ export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
                         input={<OutlinedInput label="Checked" />}
                         renderValue={(selected) => (selected as string[]).join(", ")}
                       >
-                        <MenuItem value="Yes">Yes</MenuItem>
-                        <MenuItem value="No">No</MenuItem>
+                        <MenuItem value="Found">Found</MenuItem>
+                        <MenuItem value="Open">Open</MenuItem>
                       </Select>
                     </FormControl>
                     <FormControl size="small" sx={selectSx}>
@@ -634,9 +634,9 @@ export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
                         <TableCell>{playerAlias(players, h.finding_player)}</TableCell>
                         <TableCell align="center">
                           {h.found ? (
-                            <Chip size="small" label="Yes" color="success" variant="outlined" />
+                            <Chip size="small" label="Found" color="success" variant="outlined" />
                           ) : (
-                            <Chip size="small" label="No" variant="outlined" />
+                            <Chip size="small" label="Open" variant="outlined" />
                           )}
                         </TableCell>
                         <TableCell>
