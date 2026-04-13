@@ -60,6 +60,7 @@ test.describe("connection", () => {
     await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
     await expect(page.getByRole("button", { name: /Slot 1 \(1\)/ })).toBeVisible();
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Add slot", level: 2 })).toHaveCount(0);
 
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
     await expect(page.getByText("33.3%")).toBeVisible();
@@ -106,6 +107,12 @@ test.describe("connection", () => {
     await expect(page.getByRole("cell", { name: "E2E Location Alpha" })).toBeVisible();
 
     await page.getByRole("banner").getByRole("button", { name: "Add slot" }).click();
+    await expect(page.getByRole("heading", { name: "Add slot", level: 2 })).toBeVisible();
+    await expect(page.getByText("Seed: integration-ws-seed")).toHaveCount(0);
+    await expect(page.getByText("Connected (Dandoku)")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Log out saved sign-in Pick Me Game Dandoku" }),
+    ).toBeVisible();
     await page.getByText("Second Quest").first().click();
     await page.getByLabel("Slot name").fill("Ranger");
     await page.getByRole("button", { name: "Sign in" }).click();

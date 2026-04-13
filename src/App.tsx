@@ -92,6 +92,11 @@ function App() {
   const activeSlotEntry = slotSessions.find((entry) => entry.key === activeSlotKey) ?? null;
   const visibleSlotKey = activeSlotEntry?.key ?? slotSessions[0]?.key ?? null;
   const registeredGames = Array.from(new Set(slotSessions.map((entry) => entry.session.game)));
+  const connectedSlotSignIns = slotSessions.map((entry) => ({
+    game: entry.session.game,
+    slotName: entry.slotNameUsed,
+    displayName: entry.session.displayName,
+  }));
 
   useEffect(() => {
     setRecentConnections(loadRecentConnections());
@@ -158,6 +163,28 @@ function App() {
     });
     setSnackbarMessage(`Logged out ${activeSlotEntry.session.displayName}.`);
   }, [activeSlotEntry, slotSessions]);
+
+  const logoutSavedSignIn = useCallback(
+    (entry: RecentGameSignIn) => {
+      const game = entry.game.trim();
+      const slotName = entry.slotName.trim();
+      const matched = slotSessions.find(
+        (sessionEntry) =>
+          sessionEntry.session.game.trim() === game &&
+          sessionEntry.slotNameUsed.trim() === slotName,
+      );
+      if (!matched) return;
+      matched.socket.close();
+      setSlotSessions((prev) => prev.filter((sessionEntry) => sessionEntry.key !== matched.key));
+      setActiveSlotKey((prev) => {
+        if (prev !== matched.key) return prev;
+        const remaining = slotSessions.filter((sessionEntry) => sessionEntry.key !== matched.key);
+        return remaining[0]?.key ?? null;
+      });
+      setSnackbarMessage(`Logged out ${matched.session.displayName}.`);
+    },
+    [slotSessions],
+  );
 
   const registerSlot = useCallback(
     async (credentials: MultiSlotCredentials) => {
@@ -299,91 +326,110 @@ function App() {
         {room && roomSocket ? (
           <MessageLogPanel entries={messageLogEntries} onClear={clearMessageLog} />
         ) : null}
-        <Container
-          maxWidth="md"
-          sx={{
-            py: 4,
-            flex: 1,
-            minWidth: 0,
-          }}
-        >
-          {room && roomSocket ? (
-            slotSessions.length > 0 ? (
-              <>
-                {slotSessions.map((entry) => (
-                  <Box key={entry.key} sx={{ display: entry.key === visibleSlotKey ? "block" : "none" }}>
-                    <TrackerShell
-                      room={room}
-                      socket={entry.socket}
-                      slotSession={entry.session}
-                      onNotify={setSnackbarMessage}
-                      registeredGames={registeredGames}
-                    />
-                  </Box>
-                ))}
-                {showRoomInfo ? (
-                  <Box sx={{ mt: 2 }}>
-                    <RoomInfoView
-                      room={room}
-                      serverHost={host}
-                      serverPort={port}
-                      recentGameSignIns={recentGameSignIns}
-                      slotConnectBusy={slotConnectBusy}
-                      slotConnectError={slotConnectError}
-                      onDeleteGameSignIn={(entry) => {
-                        removeRecentGameSignIn(entry);
-                        setRecentGameSignIns(loadRecentGameSignIns());
-                      }}
-                      onSlotConnected={registerSlot}
-                    />
-                  </Box>
-                ) : null}
-              </>
+        <Box sx={{ display: "flex", flex: 1, minWidth: 0 }}>
+          <Container
+            maxWidth="md"
+            sx={{
+              py: 4,
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {room && roomSocket ? (
+              slotSessions.length > 0 ? (
+                <>
+                  {slotSessions.map((entry) => (
+                    <Box key={entry.key} sx={{ display: entry.key === visibleSlotKey ? "block" : "none" }}>
+                      <TrackerShell
+                        room={room}
+                        socket={entry.socket}
+                        slotSession={entry.session}
+                        onNotify={setSnackbarMessage}
+                        registeredGames={registeredGames}
+                      />
+                    </Box>
+                  ))}
+                </>
+              ) : (
+                <RoomInfoView
+                  room={room}
+                  serverHost={host}
+                  serverPort={port}
+                  recentGameSignIns={recentGameSignIns}
+                  connectedSlotSignIns={connectedSlotSignIns}
+                  slotConnectBusy={slotConnectBusy}
+                  slotConnectError={slotConnectError}
+                  onDeleteGameSignIn={(entry) => {
+                    removeRecentGameSignIn(entry);
+                    setRecentGameSignIns(loadRecentGameSignIns());
+                  }}
+                  onSlotConnected={registerSlot}
+                  onSlotLogout={logoutSavedSignIn}
+                />
+              )
             ) : (
-              <RoomInfoView
-                room={room}
-                serverHost={host}
-                serverPort={port}
-                recentGameSignIns={recentGameSignIns}
-                slotConnectBusy={slotConnectBusy}
-                slotConnectError={slotConnectError}
-                onDeleteGameSignIn={(entry) => {
-                  removeRecentGameSignIn(entry);
-                  setRecentGameSignIns(loadRecentGameSignIns());
+              <ConnectionView
+                host={host}
+                port={port}
+                hostError={hostError}
+                portError={portError}
+                connecting={connecting}
+                formError={formError}
+                recentConnections={recentConnections}
+                onHostChange={(v) => {
+                  setHost(v);
+                  if (hostError) setHostError("");
+                  if (formError) setFormError(null);
                 }}
-                onSlotConnected={registerSlot}
+                onPortChange={(v) => {
+                  setPort(v);
+                  if (portError) setPortError("");
+                  if (formError) setFormError(null);
+                }}
+                onSubmit={handleConnect}
+                onConnectRecent={(rec) => {
+                  void runConnect(rec.host, rec.port);
+                }}
+                onDeleteRecent={(rec) => {
+                  removeRecentConnection(rec.host, rec.port);
+                  setRecentConnections(loadRecentConnections());
+                }}
               />
-            )
-          ) : (
-            <ConnectionView
-              host={host}
-              port={port}
-              hostError={hostError}
-              portError={portError}
-              connecting={connecting}
-              formError={formError}
-              recentConnections={recentConnections}
-              onHostChange={(v) => {
-                setHost(v);
-                if (hostError) setHostError("");
-                if (formError) setFormError(null);
+            )}
+          </Container>
+          {room && roomSocket && slotSessions.length > 0 ? (
+            <Box
+              sx={{
+                width: showRoomInfo ? { xs: "100%", md: 360 } : 0,
+                borderLeft: showRoomInfo ? 1 : 0,
+                borderColor: "divider",
+                bgcolor: "background.paper",
+                overflow: "hidden",
+                transition: "width 200ms ease",
+                p: showRoomInfo ? 2 : 0,
               }}
-              onPortChange={(v) => {
-                setPort(v);
-                if (portError) setPortError("");
-                if (formError) setFormError(null);
-              }}
-              onSubmit={handleConnect}
-              onConnectRecent={(rec) => {
-                void runConnect(rec.host, rec.port);
-              }}
-              onDeleteRecent={(rec) => {
-                removeRecentConnection(rec.host, rec.port);
-                setRecentConnections(loadRecentConnections());
-              }}
-            />
-          )}
-        </Container>
+            >
+              {showRoomInfo ? (
+                <RoomInfoView
+                  room={room}
+                  compact
+                  serverHost={host}
+                  serverPort={port}
+                  recentGameSignIns={recentGameSignIns}
+                  connectedSlotSignIns={connectedSlotSignIns}
+                  slotConnectBusy={slotConnectBusy}
+                  slotConnectError={slotConnectError}
+                  onDeleteGameSignIn={(entry) => {
+                    removeRecentGameSignIn(entry);
+                    setRecentGameSignIns(loadRecentGameSignIns());
+                  }}
+                  onSlotConnected={registerSlot}
+                  onSlotLogout={logoutSavedSignIn}
+                />
+              ) : null}
+            </Box>
+          ) : null}
+        </Box>
       </Box>
 
       <Snackbar
