@@ -44,6 +44,7 @@ export type HintsViewProps = {
   socket: WebSocket;
   slotSession: SlotSession;
   tracker: TrackerRuntimeState;
+  registeredGames?: string[];
 };
 
 function hintStatusRowKey(h: HintPacket): string {
@@ -176,13 +177,14 @@ function hasActiveFiltersAll(f: FiltersAll): boolean {
   );
 }
 
-export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
+export function HintsView({ socket, slotSession, tracker, registeredGames = [] }: HintsViewProps) {
   const [tab, setTab] = useState(0);
   const [filtersSub, setFiltersSub] = useState<FiltersSub>(emptyFiltersSub);
   const [filtersAll, setFiltersAll] = useState<FiltersAll>(emptyFiltersAll);
   const [statusBusyKey, setStatusBusyKey] = useState<string | null>(null);
   const [updateHintError, setUpdateHintError] = useState<string | null>(null);
   const { hints, mapsByGame, slot, players, slotGames } = tracker;
+  const registeredGameSet = new Set(registeredGames);
 
   useEffect(() => {
     const onMsg = (ev: MessageEvent) => {
@@ -617,18 +619,62 @@ export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
                     {filteredRows.map((h, i) => (
                       <TableRow key={`all-${h.location}-${h.item}-${i}`}>
                         <TableCell>
-                          {resolveItemName(
-                            mapsByGame,
-                            h.item,
-                            gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
-                          )}
+                          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                            <Typography variant="body2">
+                              {resolveItemName(
+                                mapsByGame,
+                                h.item,
+                                gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                              )}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game}
+                              color={
+                                registeredGameSet.has(
+                                  gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                                )
+                                  ? "primary"
+                                  : "default"
+                              }
+                              variant={
+                                registeredGameSet.has(
+                                  gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                                )
+                                  ? "filled"
+                                  : "outlined"
+                              }
+                            />
+                          </Stack>
                         </TableCell>
                         <TableCell>
-                          {resolveLocationName(
-                            mapsByGame,
-                            gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
-                            h.location,
-                          )}
+                          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                            <Typography variant="body2">
+                              {resolveLocationName(
+                                mapsByGame,
+                                gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                                h.location,
+                              )}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game}
+                              color={
+                                registeredGameSet.has(
+                                  gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                                )
+                                  ? "primary"
+                                  : "default"
+                              }
+                              variant={
+                                registeredGameSet.has(
+                                  gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                                )
+                                  ? "filled"
+                                  : "outlined"
+                              }
+                            />
+                          </Stack>
                         </TableCell>
                         <TableCell>{playerAlias(players, h.receiving_player)}</TableCell>
                         <TableCell>{playerAlias(players, h.finding_player)}</TableCell>
@@ -668,18 +714,62 @@ export function HintsView({ socket, slotSession, tracker }: HintsViewProps) {
                     {filteredRows.map((h, i) => (
                       <TableRow key={`${h.location}-${h.item}-${i}`}>
                         <TableCell>
-                          {resolveItemName(
-                            mapsByGame,
-                            h.item,
-                            gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
-                          )}
+                          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                            <Typography variant="body2">
+                              {resolveItemName(
+                                mapsByGame,
+                                h.item,
+                                gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                              )}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game}
+                              color={
+                                registeredGameSet.has(
+                                  gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                                )
+                                  ? "primary"
+                                  : "default"
+                              }
+                              variant={
+                                registeredGameSet.has(
+                                  gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game,
+                                )
+                                  ? "filled"
+                                  : "outlined"
+                              }
+                            />
+                          </Stack>
                         </TableCell>
                         <TableCell>
-                          {resolveLocationName(
-                            mapsByGame,
-                            gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
-                            h.location,
-                          )}
+                          <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                            <Typography variant="body2">
+                              {resolveLocationName(
+                                mapsByGame,
+                                gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                                h.location,
+                              )}
+                            </Typography>
+                            <Chip
+                              size="small"
+                              label={gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game}
+                              color={
+                                registeredGameSet.has(
+                                  gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                                )
+                                  ? "primary"
+                                  : "default"
+                              }
+                              variant={
+                                registeredGameSet.has(
+                                  gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game,
+                                )
+                                  ? "filled"
+                                  : "outlined"
+                              }
+                            />
+                          </Stack>
                         </TableCell>
                         <TableCell>
                           {tab === 0

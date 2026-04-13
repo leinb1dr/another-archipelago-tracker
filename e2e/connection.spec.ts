@@ -34,7 +34,7 @@ test.describe("connection", () => {
     await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
     await expect(page.getByRole("banner")).toContainText("127.0.0.1:53087");
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pick Me Game" })).toBeVisible();
+    await expect(page.getByText("Pick Me Game").first()).toBeVisible();
 
     const messageLog = page.getByRole("region", { name: "Message log" });
     await expect(messageLog).toBeVisible();
@@ -45,19 +45,20 @@ test.describe("connection", () => {
     assertNoPageErrors();
   });
 
-  test("registers slot with Connect and shows Connected snackbar", async ({ page }) => {
+  test("registers multiple slots and switches active tracker session", async ({ page }) => {
     const assertNoPageErrors = trackPageErrors(page);
     await page.goto("/");
     await page.getByLabel("Host").fill("127.0.0.1");
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByRole("button", { name: "Pick Me Game" }).click();
+    await page.getByText("Pick Me Game").first().click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page.getByText("Connected as Dandoku.")).toBeVisible();
     await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Slot 1 \(1\)/ })).toBeVisible();
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
@@ -104,17 +105,29 @@ test.describe("connection", () => {
     await expect(page.getByRole("cell", { name: "Shared Trinket" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "E2E Location Alpha" })).toBeVisible();
 
+    await page.getByRole("banner").getByRole("button", { name: "Add slot" }).click();
+    await page.getByText("Second Quest").first().click();
+    await page.getByLabel("Slot name").fill("Ranger");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByText("Connected as Ranger.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Slot 2 \(2\)/ })).toBeVisible();
+    await expect(page.getByText(/Ranger · Second Quest/)).toBeVisible();
+
+    await page.getByRole("banner").getByRole("button", { name: /Slot 2 \(2\)/ }).click();
+    await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Slot 1 \(2\)/ })).toBeVisible();
+
     assertNoPageErrors();
   });
 
-  test("slot logout reconnects and returns to room info with snackbar", async ({ page }) => {
+  test("slot logout removes only active slot session", async ({ page }) => {
     const assertNoPageErrors = trackPageErrors(page);
     await page.goto("/");
     await page.getByLabel("Host").fill("127.0.0.1");
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByRole("button", { name: "Pick Me Game" }).click();
+    await page.getByText("Pick Me Game").first().click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
@@ -123,22 +136,9 @@ test.describe("connection", () => {
     await expect(page.getByRole("dialog", { name: "Session" })).toBeVisible();
 
     const dialogLogout = page.getByRole("dialog", { name: "Session" }).getByRole("button", { name: "Log out" });
-    const reconnecting = dialogLogout.click();
-    await expect
-      .poll(
-        async () =>
-          (await page.getByRole("progressbar").count()) > 0 ||
-          (await page.getByText(/Reconnected to room/).isVisible()),
-        { timeout: 15_000 },
-      )
-      .toBeTruthy();
-    await reconnecting;
-
-    await expect(
-      page.getByText("Reconnected to room. You can sign in to a slot when ready."),
-    ).toBeVisible();
+    await dialogLogout.click();
+    await expect(page.getByText("Logged out Dandoku.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
-    await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toHaveCount(0);
 
     assertNoPageErrors();

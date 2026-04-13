@@ -43,6 +43,7 @@ export type ChecksViewProps = {
   socket: WebSocket;
   slotSession: SlotSession;
   tracker: TrackerRuntimeState;
+  registeredGames?: string[];
 };
 
 function hintsByLocationForFinder(hints: HintPacket[], finderSlot: number): Map<number, HintPacket[]> {
@@ -111,7 +112,7 @@ function SentCheckDetailLine({
   );
 }
 
-export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
+export function ChecksView({ socket, slotSession, tracker, registeredGames = [] }: ChecksViewProps) {
   const {
     location,
     mapsByGame,
@@ -124,6 +125,7 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
     scoutedLocations,
   } = tracker;
   const maps = mapsByGame[slotSession.game];
+  const registeredGameSet = new Set(registeredGames);
   const [subTab, setSubTab] = useState(SUB_TAB_SENT);
   const [querySent, setQuerySent] = useState("");
   const [queryReceived, setQueryReceived] = useState("");
@@ -172,16 +174,17 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
       const dateLabel = seen.toLocaleDateString();
       const timeLabel = seen.toLocaleTimeString();
       const finderGame = gameForHintLocation(slotGames, ni.player);
+      const itemGame = slotSession.game;
       const itemLabel =
         ni.item <= 0
           ? formatNetworkId(ni.item)
-          : resolveItemName(mapsByGame, ni.item, slotSession.game);
+          : resolveItemName(mapsByGame, ni.item, itemGame);
       const locLabel =
         ni.location <= 0
           ? formatNetworkId(ni.location)
           : resolveLocationName(mapsByGame, finderGame ?? slotSession.game, ni.location);
       const fromLabel = playerAlias(players, ni.player);
-      return { index, itemLabel, locLabel, fromLabel, dateLabel, timeLabel, raw: ni };
+      return { index, itemLabel, locLabel, fromLabel, dateLabel, timeLabel, raw: ni, itemGame, finderGame };
     });
   }, [receivedItems, mapsByGame, players, slotGames, slotSession.game]);
 
@@ -294,9 +297,31 @@ export function ChecksView({ socket, slotSession, tracker }: ChecksViewProps) {
                           <TableCell>{r.index + 1}</TableCell>
                           <TableCell>{r.dateLabel}</TableCell>
                           <TableCell>{r.timeLabel}</TableCell>
-                          <TableCell>{r.itemLabel}</TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                              <Typography variant="body2">{r.itemLabel}</Typography>
+                              <Chip
+                                size="small"
+                                label={r.itemGame}
+                                color={registeredGameSet.has(r.itemGame) ? "primary" : "default"}
+                                variant={registeredGameSet.has(r.itemGame) ? "filled" : "outlined"}
+                              />
+                            </Stack>
+                          </TableCell>
                           <TableCell>{r.fromLabel}</TableCell>
-                          <TableCell>{r.locLabel}</TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                              <Typography variant="body2">{r.locLabel}</Typography>
+                              {r.finderGame ? (
+                                <Chip
+                                  size="small"
+                                  label={r.finderGame}
+                                  color={registeredGameSet.has(r.finderGame) ? "primary" : "default"}
+                                  variant={registeredGameSet.has(r.finderGame) ? "filled" : "outlined"}
+                                />
+                              ) : null}
+                            </Stack>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

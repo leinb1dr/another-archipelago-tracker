@@ -14,16 +14,13 @@ import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useCallback, useMemo, useState } from "react";
-import { sendConnectAndAwaitOutcome } from "../connection/sendConnect";
 import {
   filterGameSignInsForServer,
   type RecentGameSignIn,
 } from "../connection/recentGameSignInsStorage";
 import {
-  buildConnectPacket,
-  findPlayerForSlot,
-  type SlotSession,
-} from "../protocol/connectPackets";
+  type MultiSlotCredentials,
+} from "../connection/multiSlotSessions";
 import type { RoomInfo } from "../protocol/roomInfo";
 import { RegisterSlotDialog, type SlotConnectedPayload } from "./RegisterSlotDialog";
 
@@ -33,24 +30,26 @@ function formatVersion(v: { major: number; minor: number; build: number }): stri
 
 export type RoomInfoViewProps = {
   room: RoomInfo;
-  socket: WebSocket;
   reconnecting?: boolean;
   /** Current server (must match stored entries to show saved sign-ins). */
   serverHost: string;
   serverPort: string;
   recentGameSignIns: RecentGameSignIn[];
   onDeleteGameSignIn: (entry: RecentGameSignIn) => void;
-  onSlotConnected: (payload: SlotConnectedPayload) => void;
+  slotConnectBusy?: boolean;
+  slotConnectError?: string | null;
+  onSlotConnected: (credentials: MultiSlotCredentials) => Promise<void>;
 };
 
 export function RoomInfoView({
   room,
-  socket,
   reconnecting = false,
   serverHost,
   serverPort,
   recentGameSignIns,
   onDeleteGameSignIn,
+  slotConnectBusy = false,
+  slotConnectError = null,
   onSlotConnected,
 }: RoomInfoViewProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -64,40 +63,13 @@ export function RoomInfoView({
       const gameTitle = entry.game.trim();
       if (!slotName || !gameTitle) return;
       setQuickSignInError(null);
-      if (socket.readyState !== WebSocket.OPEN) {
-        setQuickSignInError("Connection is not available.");
-        return;
-      }
-
       const key = `${gameTitle}:${slotName}`;
       setQuickSignInKey(key);
       try {
-        const packet = buildConnectPacket({
-          name: slotName,
+        await onSlotConnected({
           game: gameTitle,
+          slotName,
           password: undefined,
-          version: room.version,
-        });
-        const result = await sendConnectAndAwaitOutcome(socket, packet);
-        if (result.outcome === "refused") {
-          const errs = result.refused.errors?.length
-            ? result.refused.errors.join(", ")
-            : "Connection refused.";
-          setQuickSignInError(errs);
-          return;
-        }
-        const player = findPlayerForSlot(result.connected);
-        const display = player?.alias ?? player?.name ?? slotName;
-        const session: SlotSession = {
-          game: gameTitle,
-          displayName: display,
-          connected: result.connected,
-          connectBatchRest: result.connectBatchRest,
-        };
-        onSlotConnected({
-          message: `Connected as ${display}.`,
-          session,
-          slotNameUsed: slotName,
         });
       } catch (e) {
         setQuickSignInError(e instanceof Error ? e.message : "Could not complete sign-in.");
@@ -105,7 +77,7 @@ export function RoomInfoView({
         setQuickSignInKey(null);
       }
     },
-    [onSlotConnected, room.version, socket],
+    [onSlotConnected],
   );
 
   const savedForThisServer = useMemo(
@@ -230,6 +202,7 @@ export function RoomInfoView({
                             disabled={
                               reconnecting ||
                               Boolean(quickSignInKey) ||
+                              slotConnectBusy ||
                               dialogOpen
                             }
                             onClick={() => void quickSignIn(entry)}
@@ -242,7 +215,7 @@ export function RoomInfoView({
                             type="button"
                             size="small"
                             color="inherit"
-                            disabled={reconnecting || Boolean(quickSignInKey)}
+                            disabled={reconnecting || Boolean(quickSignInKey) || slotConnectBusy}
                             onClick={() => onDeleteGameSignIn(entry)}
                             aria-label={`Delete saved sign-in ${entry.game} ${entry.slotName}`}
                           >
@@ -310,13 +283,15 @@ export function RoomInfoView({
       <RegisterSlotDialog
         open={dialogOpen && !reconnecting}
         gameTitle={selectedGame}
-        socket={socket}
-        version={room.version}
+        submitting={slotConnectBusy}
+        errorMessage={slotConnectError}
         onClose={() => {
           setDialogOpen(false);
           setSelectedGame(null);
         }}
-        onConnected={onSlotConnected}
+        onConnected={async ({ credentials }: SlotConnectedPayload) => {
+          await onSlotConnected(credentials);
+        }}
       />
     </Card>
   );

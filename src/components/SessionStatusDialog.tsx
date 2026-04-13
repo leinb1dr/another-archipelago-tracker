@@ -69,8 +69,8 @@ export function SessionStatusDialog({
             </Stack>
           </Stack>
           <Typography variant="caption" color="text.secondary">
-            Logging out closes this slot session and opens a fresh connection to the room so you
-            can sign in as a different slot.
+            Logging out closes this slot session only. You can keep tracking other registered
+            slots or sign in again from room info.
           </Typography>
         </Stack>
       </DialogContent>

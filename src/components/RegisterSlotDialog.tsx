@@ -7,26 +7,17 @@ import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { useCallback, useEffect, useState } from "react";
-import { sendConnectAndAwaitOutcome } from "../connection/sendConnect";
-import {
-  buildConnectPacket,
-  findPlayerForSlot,
-  type SlotSession,
-} from "../protocol/connectPackets";
-import type { NetworkVersion } from "../protocol/roomInfo";
+import type { MultiSlotCredentials } from "../connection/multiSlotSessions";
 
 export type SlotConnectedPayload = {
-  message: string;
-  session: SlotSession;
-  /** Connect packet `name` (trimmed), for local storage — not the display alias. */
-  slotNameUsed: string;
+  credentials: MultiSlotCredentials;
 };
 
 export type RegisterSlotDialogProps = {
   open: boolean;
   gameTitle: string | null;
-  socket: WebSocket | null;
-  version: NetworkVersion;
+  submitting?: boolean;
+  errorMessage?: string | null;
   onClose: () => void;
   onConnected: (payload: SlotConnectedPayload) => void;
 };
@@ -34,8 +25,8 @@ export type RegisterSlotDialogProps = {
 export function RegisterSlotDialog({
   open,
   gameTitle,
-  socket,
-  version,
+  submitting = false,
+  errorMessage = null,
   onClose,
   onConnected,
 }: RegisterSlotDialogProps) {
@@ -43,7 +34,6 @@ export function RegisterSlotDialog({
   const [password, setPassword] = useState("");
   const [nameError, setNameError] = useState("");
   const [dialogError, setDialogError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open || !gameTitle) return;
@@ -67,56 +57,32 @@ export function RegisterSlotDialog({
     }
   }, [submitting, onClose, resetFields]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(() => {
     const trimmed = name.trim();
     if (!trimmed) {
       setNameError("Slot name is required.");
       return;
     }
     setNameError("");
-    if (!socket || socket.readyState !== WebSocket.OPEN || !gameTitle) {
+    if (!gameTitle) {
       setDialogError("Connection is not available.");
       return;
     }
 
-    setDialogError(null);
-    setSubmitting(true);
-    try {
-      const packet = buildConnectPacket({
-        name: trimmed,
+    onConnected({
+      credentials: {
         game: gameTitle,
+        slotName: trimmed,
         password: password.trim() || undefined,
-        version,
-      });
-      const result = await sendConnectAndAwaitOutcome(socket, packet);
-      if (result.outcome === "refused") {
-        const errs = result.refused.errors?.length
-          ? result.refused.errors.join(", ")
-          : "Connection refused.";
-        setDialogError(errs);
-        return;
-      }
-      const player = findPlayerForSlot(result.connected);
-      const display = player?.alias ?? player?.name ?? trimmed;
-      const session: SlotSession = {
-        game: gameTitle,
-        displayName: display,
-        connected: result.connected,
-        connectBatchRest: result.connectBatchRest,
-      };
-      onConnected({
-        message: `Connected as ${display}.`,
-        session,
-        slotNameUsed: trimmed,
-      });
-      resetFields();
-      onClose();
-    } catch (e) {
-      setDialogError(e instanceof Error ? e.message : "Could not complete sign-in.");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [gameTitle, name, onClose, onConnected, password, resetFields, socket, version]);
+      },
+    });
+    resetFields();
+    onClose();
+  }, [gameTitle, name, onClose, onConnected, password, resetFields]);
+
+  useEffect(() => {
+    setDialogError(errorMessage ?? null);
+  }, [errorMessage]);
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm" aria-labelledby="register-slot-title">

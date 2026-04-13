@@ -7,13 +7,14 @@ import { WebSocketServer } from "ws";
 
 const PORT = Number(process.env.ROOMINFO_WS_PORT ?? 53087);
 
-const GAME = "Pick Me Game";
+const GAME_A = "Pick Me Game";
+const GAME_B = "Second Quest";
 
 const roomInfoPacket = [
   {
     cmd: "RoomInfo",
     password: false,
-    games: [GAME],
+    games: [GAME_A, GAME_B],
     tags: ["E2E"],
     version: { major: 0, minor: 6, build: 7, class: "Version" },
     generator_version: { major: 0, minor: 6, build: 7, class: "Version" },
@@ -42,7 +43,7 @@ function dataPackageReply() {
     cmd: "DataPackage",
     data: {
       games: {
-        [GAME]: {
+        [GAME_A]: {
           location_name_to_id: {
             "E2E Location Alpha": 100,
             "E2E Location Beta": 101,
@@ -53,6 +54,15 @@ function dataPackageReply() {
             "Shared Trinket": 201,
           },
         },
+        [GAME_B]: {
+          location_name_to_id: {
+            "SQ Location One": 300,
+            "SQ Location Two": 301,
+          },
+          item_name_to_id: {
+            "SQ Item": 400,
+          },
+        },
       },
     },
   };
@@ -60,11 +70,9 @@ function dataPackageReply() {
 
 /** Matches Archipelago `Retrieved`: `keys` is a dict of requested key → value. */
 function retrievedReply(requestedKeys) {
-  const hintsKey = "_read_hints_0_1";
-  const groupsKey = `_read_location_name_groups_${GAME}`;
   const keys = {};
-  if (requestedKeys.includes(hintsKey)) {
-    keys[hintsKey] = [
+  if (requestedKeys.includes("_read_hints_0_1")) {
+    keys["_read_hints_0_1"] = [
       {
         receiving_player: 1,
         finding_player: 1,
@@ -84,10 +92,28 @@ function retrievedReply(requestedKeys) {
       },
     ];
   }
-  if (requestedKeys.includes(groupsKey)) {
-    keys[groupsKey] = {
+  if (requestedKeys.includes("_read_hints_0_2")) {
+    keys["_read_hints_0_2"] = [
+      {
+        receiving_player: 2,
+        finding_player: 2,
+        location: 300,
+        item: 400,
+        found: 0,
+        item_flags: 1,
+        status: 20,
+      },
+    ];
+  }
+  if (requestedKeys.includes(`_read_location_name_groups_${GAME_A}`)) {
+    keys[`_read_location_name_groups_${GAME_A}`] = {
       Dungeon: ["E2E Location Alpha", "E2E Scout Target"],
       Field: ["E2E Location Beta"],
+    };
+  }
+  if (requestedKeys.includes(`_read_location_name_groups_${GAME_B}`)) {
+    keys[`_read_location_name_groups_${GAME_B}`] = {
+      Area: ["SQ Location One", "SQ Location Two"],
     };
   }
   return { cmd: "Retrieved", keys };
@@ -108,28 +134,40 @@ wss.on("connection", (socket) => {
         if (p.cmd === "Connect") {
           connectJustHandled = true;
           const name = typeof p.name === "string" ? p.name : "Player";
+          const slot = p.game === GAME_B ? 2 : 1;
+          const game = slot === 2 ? GAME_B : GAME_A;
+          const missing_locations = slot === 2 ? [300] : [100, 102];
+          const checked_locations = slot === 2 ? [301] : [101];
           reply.push({
             cmd: "Connected",
             team: 0,
-            slot: 1,
+            slot,
             players: [
               {
                 team: 0,
                 slot: 1,
-                alias: name,
-                name,
+                alias: "Dandoku",
+                name: "Dandoku",
+                class: "NetworkPlayer",
+              },
+              {
+                team: 0,
+                slot: 2,
+                alias: "Ranger",
+                name: "Ranger",
                 class: "NetworkPlayer",
               },
             ],
-            missing_locations: [100, 102],
-            checked_locations: [101],
+            missing_locations,
+            checked_locations,
             hint_points: 3,
             slot_info: {
               1: {
-                name,
-                game: GAME,
+                name: "Dandoku",
+                game: GAME_A,
                 type: 1,
               },
+              2: { name: "Ranger", game: GAME_B, type: 1 },
             },
           });
         }
@@ -162,9 +200,9 @@ wss.on("connection", (socket) => {
             index: 0,
             items: [
               {
-                item: 201,
-                location: 100,
-                player: 1,
+                item: data.some((p) => p?.game === GAME_B) ? 400 : 201,
+                location: data.some((p) => p?.game === GAME_B) ? 300 : 100,
+                player: data.some((p) => p?.game === GAME_B) ? 2 : 1,
                 flags: 0,
               },
             ],

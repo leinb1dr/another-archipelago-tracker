@@ -39,6 +39,32 @@ describe("applyRetrieved", () => {
     expect(next.hints[0].location).toBe(10);
   });
 
+  it("reads hints for non-default active slot keys", () => {
+    const prev = initTrackerState(minimalConnected({ team: 0, slot: 2 }));
+    const hk = readHintsStorageKey(0, 2);
+    const next = applyRetrieved(
+      prev,
+      {
+        cmd: "Retrieved",
+        keys: {
+          [hk]: [
+            {
+              receiving_player: 2,
+              finding_player: 2,
+              location: 42,
+              item: 88,
+              found: false,
+            },
+          ],
+        },
+      },
+      game,
+    );
+    expect(next.hints).toHaveLength(1);
+    expect(next.hints[0].receiving_player).toBe(2);
+    expect(next.hints[0].location).toBe(42);
+  });
+
   it("falls back to top-level storage key (legacy mock shape)", () => {
     const prev = initTrackerState(minimalConnected({ team: 0, slot: 1 }));
     const hk = readHintsStorageKey(0, 1);

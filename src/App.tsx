@@ -16,6 +16,10 @@ import {
   CONNECTION_FAILED_MESSAGE,
   connectAndAwaitRoomInfo,
 } from "./connection/connectArchipelago";
+import {
+  connectSlotSession,
+  type MultiSlotCredentials,
+} from "./connection/multiSlotSessions";
 import { useInboundMessageLog } from "./connection/useInboundMessageLog";
 import {
   loadRecentGameSignIns,
@@ -53,6 +57,13 @@ function validatePort(port: string): string {
 
 const DEFAULT_HOST = "archipelago.gg";
 
+type SlotSessionEntry = {
+  key: string;
+  socket: WebSocket;
+  session: SlotSession;
+  slotNameUsed: string;
+};
+
 function App() {
   const [host, setHost] = useState(DEFAULT_HOST);
   const [port, setPort] = useState("");
@@ -61,19 +72,26 @@ function App() {
   const [connecting, setConnecting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [room, setRoom] = useState<RoomInfo | null>(null);
-  const [sessionSocket, setSessionSocket] = useState<WebSocket | null>(null);
-  const [slotSession, setSlotSession] = useState<SlotSession | null>(null);
+  const [roomSocket, setRoomSocket] = useState<WebSocket | null>(null);
+  const [slotSessions, setSlotSessions] = useState<SlotSessionEntry[]>([]);
+  const [activeSlotKey, setActiveSlotKey] = useState<string | null>(null);
+  const [slotConnectBusy, setSlotConnectBusy] = useState(false);
+  const [slotConnectError, setSlotConnectError] = useState<string | null>(null);
+  const [showRoomInfo, setShowRoomInfo] = useState(false);
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
-  const [roomReconnecting, setRoomReconnecting] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
   const [recentGameSignIns, setRecentGameSignIns] = useState<RecentGameSignIn[]>([]);
   const [sessionHandshakeRaw, setSessionHandshakeRaw] = useState<string | null>(null);
 
   const { entries: messageLogEntries, clear: clearMessageLog } = useInboundMessageLog(
-    sessionSocket,
+    roomSocket,
     sessionHandshakeRaw,
   );
+
+  const activeSlotEntry = slotSessions.find((entry) => entry.key === activeSlotKey) ?? null;
+  const visibleSlotKey = activeSlotEntry?.key ?? slotSessions[0]?.key ?? null;
+  const registeredGames = Array.from(new Set(slotSessions.map((entry) => entry.session.game)));
 
   useEffect(() => {
     setRecentConnections(loadRecentConnections());
@@ -82,9 +100,10 @@ function App() {
 
   useEffect(() => {
     return () => {
-      sessionSocket?.close();
+      roomSocket?.close();
+      for (const entry of slotSessions) entry.socket.close();
     };
-  }, [sessionSocket]);
+  }, [roomSocket, slotSessions]);
 
   const runConnect = useCallback(async (hostRaw: string, portRaw: string) => {
     const he = validateHost(hostRaw);
@@ -103,10 +122,16 @@ function App() {
     try {
       const url = buildArchipelagoWsUrl(nextHost, nextPort);
       const { room: nextRoom, socket, firstMessageRaw } = await connectAndAwaitRoomInfo(url);
-      setSlotSession(null);
+      setActiveSlotKey(null);
+      setShowRoomInfo(false);
+      setSlotSessions((prev) => {
+        for (const entry of prev) entry.socket.close();
+        return [];
+      });
+      roomSocket?.close();
       setRoom(nextRoom);
       setSessionHandshakeRaw(firstMessageRaw);
-      setSessionSocket(socket);
+      setRoomSocket(socket);
       upsertRecentConnection(nextHost, nextPort);
       setRecentConnections(loadRecentConnections());
     } catch (e) {
@@ -121,31 +146,53 @@ function App() {
     void runConnect(host, port);
   }, [host, port, runConnect]);
 
-  const performSlotLogout = useCallback(async () => {
-    if (!sessionSocket) return;
+  const performSlotLogout = useCallback(() => {
+    if (!activeSlotEntry) return;
     setSessionDialogOpen(false);
-    setSlotSession(null);
-    setRoomReconnecting(true);
-    sessionSocket.close();
-    try {
-      const url = buildArchipelagoWsUrl(host, port);
-      const { room: nextRoom, socket, firstMessageRaw } = await connectAndAwaitRoomInfo(url);
-      setRoom(nextRoom);
-      setSessionHandshakeRaw(firstMessageRaw);
-      setSessionSocket(socket);
-      upsertRecentConnection(host, port);
-      setRecentConnections(loadRecentConnections());
-      setSnackbarMessage("Reconnected to room. You can sign in to a slot when ready.");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
-      setRoom(null);
-      setSessionHandshakeRaw(null);
-      setSessionSocket(null);
-      setFormError(msg);
-    } finally {
-      setRoomReconnecting(false);
-    }
-  }, [host, port, sessionSocket]);
+    activeSlotEntry.socket.close();
+    setSlotSessions((prev) => prev.filter((entry) => entry.key !== activeSlotEntry.key));
+    setActiveSlotKey((prev) => {
+      if (prev !== activeSlotEntry.key) return prev;
+      const remaining = slotSessions.filter((entry) => entry.key !== activeSlotEntry.key);
+      return remaining[0]?.key ?? null;
+    });
+    setSnackbarMessage(`Logged out ${activeSlotEntry.session.displayName}.`);
+  }, [activeSlotEntry, slotSessions]);
+
+  const registerSlot = useCallback(
+    async (credentials: MultiSlotCredentials) => {
+      if (!room) throw new Error("Room info is unavailable.");
+      setSlotConnectBusy(true);
+      setSlotConnectError(null);
+      try {
+        const { socket, session } = await connectSlotSession(host, port, room.version, credentials);
+        const key = `${session.connected.team}:${session.connected.slot}`;
+        setSlotSessions((prev) => {
+          const existing = prev.find((entry) => entry.key === key);
+          if (existing) existing.socket.close();
+          const next = prev.filter((entry) => entry.key !== key);
+          return [...next, { key, socket, session, slotNameUsed: credentials.slotName }];
+        });
+        setActiveSlotKey(key);
+        upsertRecentGameSignIn({
+          host,
+          port,
+          game: session.game,
+          slotName: credentials.slotName,
+        });
+        setRecentGameSignIns(loadRecentGameSignIns());
+        setSnackbarMessage(`Connected as ${session.displayName}.`);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Could not complete sign-in.";
+        setSlotConnectError(message);
+        throw error;
+      } finally {
+        setSlotConnectBusy(false);
+      }
+    },
+    [host, port, room],
+  );
 
   return (
     <Box
@@ -167,7 +214,7 @@ function App() {
             <Typography variant="h6" component="h1" sx={{ flexShrink: 0 }}>
               Archipelago Tracker
             </Typography>
-            {sessionSocket ? (
+            {roomSocket ? (
               <Typography
                 component="span"
                 variant="body2"
@@ -188,8 +235,23 @@ function App() {
             ) : null}
           </Stack>
           <Box sx={{ flexGrow: 1 }} />
-          {slotSession ? (
+          {activeSlotEntry ? (
             <Stack direction="row" spacing={1} sx={{ alignItems: "center", maxWidth: "min(100%, 420px)" }}>
+              <Button
+                color="inherit"
+                size="small"
+                variant="outlined"
+                onClick={() => {
+                  const index = slotSessions.findIndex((entry) => entry.key === activeSlotEntry.key);
+                  if (index < 0 || slotSessions.length < 2) return;
+                  const next = slotSessions[(index + 1) % slotSessions.length];
+                  setActiveSlotKey(next.key);
+                }}
+                sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
+                disabled={slotSessions.length < 2}
+              >
+                Slot {activeSlotEntry.session.connected.slot} ({slotSessions.length})
+              </Button>
               <Typography
                 variant="body2"
                 color="inherit"
@@ -200,15 +262,23 @@ function App() {
                   whiteSpace: "nowrap",
                   maxWidth: { xs: 140, sm: 360 },
                 }}
-                title={`${slotSession.displayName} · ${slotSession.game}`}
+                title={`${activeSlotEntry.session.displayName} · ${activeSlotEntry.session.game}`}
               >
-                {slotSession.displayName} · {slotSession.game}
+                {activeSlotEntry.session.displayName} · {activeSlotEntry.session.game}
               </Typography>
               <Button
                 color="inherit"
                 variant="outlined"
                 size="small"
-                disabled={roomReconnecting}
+                onClick={() => setShowRoomInfo((prev) => !prev)}
+                sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
+              >
+                Add slot
+              </Button>
+              <Button
+                color="inherit"
+                variant="outlined"
+                size="small"
                 onClick={() => setSessionDialogOpen(true)}
                 sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
               >
@@ -226,7 +296,7 @@ function App() {
           flexDirection: { xs: "column", md: "row" },
         }}
       >
-        {room && sessionSocket ? (
+        {room && roomSocket ? (
           <MessageLogPanel entries={messageLogEntries} onClear={clearMessageLog} />
         ) : null}
         <Container
@@ -237,38 +307,51 @@ function App() {
             minWidth: 0,
           }}
         >
-          {room && sessionSocket ? (
-            slotSession ? (
-              <TrackerShell
-                room={room}
-                socket={sessionSocket}
-                slotSession={slotSession}
-                reconnecting={roomReconnecting}
-                onNotify={setSnackbarMessage}
-              />
+          {room && roomSocket ? (
+            slotSessions.length > 0 ? (
+              <>
+                {slotSessions.map((entry) => (
+                  <Box key={entry.key} sx={{ display: entry.key === visibleSlotKey ? "block" : "none" }}>
+                    <TrackerShell
+                      room={room}
+                      socket={entry.socket}
+                      slotSession={entry.session}
+                      onNotify={setSnackbarMessage}
+                      registeredGames={registeredGames}
+                    />
+                  </Box>
+                ))}
+                {showRoomInfo ? (
+                  <Box sx={{ mt: 2 }}>
+                    <RoomInfoView
+                      room={room}
+                      serverHost={host}
+                      serverPort={port}
+                      recentGameSignIns={recentGameSignIns}
+                      slotConnectBusy={slotConnectBusy}
+                      slotConnectError={slotConnectError}
+                      onDeleteGameSignIn={(entry) => {
+                        removeRecentGameSignIn(entry);
+                        setRecentGameSignIns(loadRecentGameSignIns());
+                      }}
+                      onSlotConnected={registerSlot}
+                    />
+                  </Box>
+                ) : null}
+              </>
             ) : (
               <RoomInfoView
                 room={room}
-                socket={sessionSocket}
-                reconnecting={roomReconnecting}
                 serverHost={host}
                 serverPort={port}
                 recentGameSignIns={recentGameSignIns}
+                slotConnectBusy={slotConnectBusy}
+                slotConnectError={slotConnectError}
                 onDeleteGameSignIn={(entry) => {
                   removeRecentGameSignIn(entry);
                   setRecentGameSignIns(loadRecentGameSignIns());
                 }}
-                onSlotConnected={({ message, session, slotNameUsed }) => {
-                  upsertRecentGameSignIn({
-                    host,
-                    port,
-                    game: session.game,
-                    slotName: slotNameUsed,
-                  });
-                  setRecentGameSignIns(loadRecentGameSignIns());
-                  setSnackbarMessage(message);
-                  setSlotSession(session);
-                }}
+                onSlotConnected={registerSlot}
               />
             )
           ) : (
@@ -319,11 +402,11 @@ function App() {
         </Alert>
       </Snackbar>
 
-      {slotSession ? (
+      {activeSlotEntry ? (
         <SessionStatusDialog
           open={sessionDialogOpen}
           room={room}
-          slotSession={slotSession}
+          slotSession={activeSlotEntry.session}
           onClose={() => setSessionDialogOpen(false)}
           onLogout={performSlotLogout}
         />

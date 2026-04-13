@@ -17,6 +17,7 @@ export type TrackerShellProps = {
   slotSession: SlotSession;
   reconnecting?: boolean;
   onNotify?: (message: string) => void;
+  registeredGames?: string[];
 };
 
 export function TrackerShell({
@@ -25,6 +26,7 @@ export function TrackerShell({
   slotSession,
   reconnecting = false,
   onNotify,
+  registeredGames = [],
 }: TrackerShellProps) {
   const { tracker, protocolError } = useTrackerSession({ socket, slotSession, room });
   const [tab, setTab] = useState(0);
@@ -60,8 +62,22 @@ export function TrackerShell({
       ) : (
         <>
           {tab === 0 ? <OverallStatusView room={room} slotSession={slotSession} tracker={tracker} /> : null}
-          {tab === 1 ? <ChecksView socket={socket} slotSession={slotSession} tracker={tracker} /> : null}
-          {tab === 2 ? <HintsView socket={socket} slotSession={slotSession} tracker={tracker} /> : null}
+          {tab === 1 ? (
+            <ChecksView
+              socket={socket}
+              slotSession={slotSession}
+              tracker={tracker}
+              registeredGames={registeredGames}
+            />
+          ) : null}
+          {tab === 2 ? (
+            <HintsView
+              socket={socket}
+              slotSession={slotSession}
+              tracker={tracker}
+              registeredGames={registeredGames}
+            />
+          ) : null}
         </>
       )}
     </Box>
