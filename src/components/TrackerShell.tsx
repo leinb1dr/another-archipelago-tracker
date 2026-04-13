@@ -18,6 +18,10 @@ export type TrackerShellProps = {
   reconnecting?: boolean;
   onNotify?: (message: string) => void;
   registeredGames?: string[];
+  /** Accent for this tracker tab (persisted per connection). */
+  connectionColor?: string;
+  /** team:slot → hex for UI rows that reference other registered slots */
+  connectionColorsByTeamSlot?: ReadonlyMap<string, string>;
 };
 
 export function TrackerShell({
@@ -27,6 +31,8 @@ export function TrackerShell({
   reconnecting = false,
   onNotify,
   registeredGames = [],
+  connectionColor,
+  connectionColorsByTeamSlot,
 }: TrackerShellProps) {
   const { tracker, protocolError } = useTrackerSession({ socket, slotSession, room });
   const [tab, setTab] = useState(0);
@@ -34,7 +40,16 @@ export function TrackerShell({
   useNotifyNewCheckedLocations(tracker, slotSession, onNotify);
 
   return (
-    <Box sx={{ position: "relative", opacity: reconnecting ? 0.65 : 1 }}>
+    <Box
+      sx={{
+        position: "relative",
+        opacity: reconnecting ? 0.65 : 1,
+        borderLeft: connectionColor ? 4 : 0,
+        borderColor: connectionColor ?? "transparent",
+        pl: connectionColor ? 1.5 : 0,
+        ml: connectionColor ? -0.5 : 0,
+      }}
+    >
       {reconnecting ? (
         <LinearProgress
           sx={{
@@ -68,6 +83,7 @@ export function TrackerShell({
               slotSession={slotSession}
               tracker={tracker}
               registeredGames={registeredGames}
+              connectionColorsByTeamSlot={connectionColorsByTeamSlot}
             />
           ) : null}
           {tab === 2 ? (
@@ -76,6 +92,7 @@ export function TrackerShell({
               slotSession={slotSession}
               tracker={tracker}
               registeredGames={registeredGames}
+              connectionColorsByTeamSlot={connectionColorsByTeamSlot}
             />
           ) : null}
         </>

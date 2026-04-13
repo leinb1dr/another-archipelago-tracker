@@ -37,13 +37,16 @@ import { buildCheckRows, groupRowsByLabel } from "../../tracker/checksGrouping";
 import { hintStatusChips, itemClassificationChipSpecs } from "../../tracker/hintUtils";
 import type { TrackerRuntimeState } from "../../tracker/packetHandlers";
 import { playerAlias, resolveItemName, resolveLocationName } from "../../tracker/resolveNames";
+import { accentColorForNetworkSlot } from "../../connection/slotConnectionColorsStorage";
 import { gameForHintItem, gameForHintLocation } from "../../tracker/slotGames";
+import { GameNameCaption } from "./GameNameCaption";
 
 export type ChecksViewProps = {
   socket: WebSocket;
   slotSession: SlotSession;
   tracker: TrackerRuntimeState;
   registeredGames?: string[];
+  connectionColorsByTeamSlot?: ReadonlyMap<string, string>;
 };
 
 function hintsByLocationForFinder(hints: HintPacket[], finderSlot: number): Map<number, HintPacket[]> {
@@ -112,7 +115,13 @@ function SentCheckDetailLine({
   );
 }
 
-export function ChecksView({ socket, slotSession, tracker, registeredGames = [] }: ChecksViewProps) {
+export function ChecksView({
+  socket,
+  slotSession,
+  tracker,
+  registeredGames = [],
+  connectionColorsByTeamSlot,
+}: ChecksViewProps) {
   const {
     location,
     mapsByGame,
@@ -174,17 +183,16 @@ export function ChecksView({ socket, slotSession, tracker, registeredGames = [] 
       const dateLabel = seen.toLocaleDateString();
       const timeLabel = seen.toLocaleTimeString();
       const finderGame = gameForHintLocation(slotGames, ni.player);
-      const itemGame = slotSession.game;
       const itemLabel =
         ni.item <= 0
           ? formatNetworkId(ni.item)
-          : resolveItemName(mapsByGame, ni.item, itemGame);
+          : resolveItemName(mapsByGame, ni.item, slotSession.game);
       const locLabel =
         ni.location <= 0
           ? formatNetworkId(ni.location)
           : resolveLocationName(mapsByGame, finderGame ?? slotSession.game, ni.location);
       const fromLabel = playerAlias(players, ni.player);
-      return { index, itemLabel, locLabel, fromLabel, dateLabel, timeLabel, raw: ni, itemGame, finderGame };
+      return { index, itemLabel, locLabel, fromLabel, dateLabel, timeLabel, raw: ni, finderGame };
     });
   }, [receivedItems, mapsByGame, players, slotGames, slotSession.game]);
 
@@ -274,6 +282,9 @@ export function ChecksView({ socket, slotSession, tracker, registeredGames = [] 
                 size="small"
                 helperText="Filter by item, location, or finder"
               />
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                Item names use your active slot&apos;s game: {slotSession.game}.
+              </Typography>
               {filteredReceived.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
                   {receivedItems.length === 0 ? "No items received yet." : "No rows match the filter."}
@@ -298,26 +309,25 @@ export function ChecksView({ socket, slotSession, tracker, registeredGames = [] 
                           <TableCell>{r.dateLabel}</TableCell>
                           <TableCell>{r.timeLabel}</TableCell>
                           <TableCell>
-                            <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-                              <Typography variant="body2">{r.itemLabel}</Typography>
-                              <Chip
-                                size="small"
-                                label={r.itemGame}
-                                color={registeredGameSet.has(r.itemGame) ? "primary" : "default"}
-                                variant={registeredGameSet.has(r.itemGame) ? "filled" : "outlined"}
-                              />
-                            </Stack>
+                            <Typography variant="body2">{r.itemLabel}</Typography>
                           </TableCell>
                           <TableCell>{r.fromLabel}</TableCell>
                           <TableCell>
-                            <Stack direction="row" spacing={0.75} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                            <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
                               <Typography variant="body2">{r.locLabel}</Typography>
                               {r.finderGame ? (
-                                <Chip
-                                  size="small"
-                                  label={r.finderGame}
-                                  color={registeredGameSet.has(r.finderGame) ? "primary" : "default"}
-                                  variant={registeredGameSet.has(r.finderGame) ? "filled" : "outlined"}
+                                <GameNameCaption
+                                  game={r.finderGame}
+                                  registered={registeredGameSet.has(r.finderGame)}
+                                  accentColor={
+                                    connectionColorsByTeamSlot
+                                      ? accentColorForNetworkSlot(
+                                          players,
+                                          r.raw.player,
+                                          connectionColorsByTeamSlot,
+                                        )
+                                      : undefined
+                                  }
                                 />
                               ) : null}
                             </Stack>

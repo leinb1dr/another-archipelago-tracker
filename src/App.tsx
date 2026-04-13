@@ -3,11 +3,15 @@ import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
 import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildArchipelagoWsUrl,
   normalizeHost,
@@ -33,6 +37,13 @@ import {
   upsertRecentConnection,
   type RecentConnection,
 } from "./connection/recentConnectionsStorage";
+import {
+  assignSlotConnectionColor,
+  buildConnectionColorsByTeamSlot,
+  loadSlotConnectionColors,
+  removeSlotConnectionColor,
+  slotConnectionColorKey,
+} from "./connection/slotConnectionColorsStorage";
 import { ConnectionView } from "./components/ConnectionView";
 import { MessageLogPanel } from "./components/MessageLogPanel";
 import { RoomInfoView } from "./components/RoomInfoView";
@@ -83,6 +94,7 @@ function App() {
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
   const [recentGameSignIns, setRecentGameSignIns] = useState<RecentGameSignIn[]>([]);
   const [sessionHandshakeRaw, setSessionHandshakeRaw] = useState<string | null>(null);
+  const [connectionColors, setConnectionColors] = useState(loadSlotConnectionColors);
 
   const { entries: messageLogEntries, clear: clearMessageLog } = useInboundMessageLog(
     roomSocket,
@@ -92,11 +104,29 @@ function App() {
   const activeSlotEntry = slotSessions.find((entry) => entry.key === activeSlotKey) ?? null;
   const visibleSlotKey = activeSlotEntry?.key ?? slotSessions[0]?.key ?? null;
   const registeredGames = Array.from(new Set(slotSessions.map((entry) => entry.session.game)));
-  const connectedSlotSignIns = slotSessions.map((entry) => ({
-    game: entry.session.game,
-    slotName: entry.slotNameUsed,
-    displayName: entry.session.displayName,
-  }));
+  const connectedSlotSignIns = useMemo(() => {
+    if (!room) return [];
+    return slotSessions.map((entry) => {
+      const sk = slotConnectionColorKey(
+        host,
+        port,
+        room.seed_name,
+        entry.session.connected.team,
+        entry.session.connected.slot,
+      );
+      return {
+        game: entry.session.game,
+        slotName: entry.slotNameUsed,
+        displayName: entry.session.displayName,
+        color: connectionColors[sk],
+      };
+    });
+  }, [room, slotSessions, host, port, connectionColors]);
+
+  const connectionColorsByTeamSlot = useMemo(() => {
+    if (!room) return new Map<string, string>();
+    return buildConnectionColorsByTeamSlot(slotSessions, host, port, room.seed_name, connectionColors);
+  }, [room, slotSessions, host, port, connectionColors]);
 
   useEffect(() => {
     setRecentConnections(loadRecentConnections());
@@ -130,9 +160,23 @@ function App() {
       setActiveSlotKey(null);
       setShowRoomInfo(false);
       setSlotSessions((prev) => {
+        if (room) {
+          for (const entry of prev) {
+            removeSlotConnectionColor(
+              slotConnectionColorKey(
+                host,
+                port,
+                room.seed_name,
+                entry.session.connected.team,
+                entry.session.connected.slot,
+              ),
+            );
+          }
+        }
         for (const entry of prev) entry.socket.close();
         return [];
       });
+      setConnectionColors(loadSlotConnectionColors());
       roomSocket?.close();
       setRoom(nextRoom);
       setSessionHandshakeRaw(firstMessageRaw);
@@ -145,7 +189,7 @@ function App() {
     } finally {
       setConnecting(false);
     }
-  }, []);
+  }, [host, port, room, roomSocket]);
 
   const handleConnect = useCallback(() => {
     void runConnect(host, port);
@@ -154,6 +198,18 @@ function App() {
   const performSlotLogout = useCallback(() => {
     if (!activeSlotEntry) return;
     setSessionDialogOpen(false);
+    if (room) {
+      removeSlotConnectionColor(
+        slotConnectionColorKey(
+          host,
+          port,
+          room.seed_name,
+          activeSlotEntry.session.connected.team,
+          activeSlotEntry.session.connected.slot,
+        ),
+      );
+      setConnectionColors(loadSlotConnectionColors());
+    }
     activeSlotEntry.socket.close();
     setSlotSessions((prev) => prev.filter((entry) => entry.key !== activeSlotEntry.key));
     setActiveSlotKey((prev) => {
@@ -162,7 +218,7 @@ function App() {
       return remaining[0]?.key ?? null;
     });
     setSnackbarMessage(`Logged out ${activeSlotEntry.session.displayName}.`);
-  }, [activeSlotEntry, slotSessions]);
+  }, [activeSlotEntry, slotSessions, room, host, port]);
 
   const logoutSavedSignIn = useCallback(
     (entry: RecentGameSignIn) => {
@@ -174,6 +230,18 @@ function App() {
           sessionEntry.slotNameUsed.trim() === slotName,
       );
       if (!matched) return;
+      if (room) {
+        removeSlotConnectionColor(
+          slotConnectionColorKey(
+            host,
+            port,
+            room.seed_name,
+            matched.session.connected.team,
+            matched.session.connected.slot,
+          ),
+        );
+        setConnectionColors(loadSlotConnectionColors());
+      }
       matched.socket.close();
       setSlotSessions((prev) => prev.filter((sessionEntry) => sessionEntry.key !== matched.key));
       setActiveSlotKey((prev) => {
@@ -183,7 +251,7 @@ function App() {
       });
       setSnackbarMessage(`Logged out ${matched.session.displayName}.`);
     },
-    [slotSessions],
+    [slotSessions, room, host, port],
   );
 
   const registerSlot = useCallback(
@@ -201,6 +269,10 @@ function App() {
           return [...next, { key, socket, session, slotNameUsed: credentials.slotName }];
         });
         setActiveSlotKey(key);
+        assignSlotConnectionColor(
+          slotConnectionColorKey(host, port, room.seed_name, session.connected.team, session.connected.slot),
+        );
+        setConnectionColors(loadSlotConnectionColors());
         upsertRecentGameSignIn({
           host,
           port,
@@ -263,51 +335,153 @@ function App() {
           </Stack>
           <Box sx={{ flexGrow: 1 }} />
           {activeSlotEntry ? (
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center", maxWidth: "min(100%, 420px)" }}>
-              <Button
-                color="inherit"
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", maxWidth: "min(100%, 560px)", minWidth: 0 }}
+            >
+              <FormControl
                 size="small"
-                variant="outlined"
-                onClick={() => {
-                  const index = slotSessions.findIndex((entry) => entry.key === activeSlotEntry.key);
-                  if (index < 0 || slotSessions.length < 2) return;
-                  const next = slotSessions[(index + 1) % slotSessions.length];
-                  setActiveSlotKey(next.key);
-                }}
-                sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
-                disabled={slotSessions.length < 2}
-              >
-                Slot {activeSlotEntry.session.connected.slot} ({slotSessions.length})
-              </Button>
-              <Typography
-                variant="body2"
-                color="inherit"
                 sx={{
-                  opacity: 0.95,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  maxWidth: { xs: 140, sm: 360 },
+                  minWidth: { xs: 140, sm: 200 },
+                  maxWidth: { xs: 200, sm: 280 },
+                  flexShrink: 1,
+                  "& .MuiOutlinedInput-root": {
+                    color: "inherit",
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgba(255,255,255,0.5)",
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgba(255,255,255,0.85)",
+                  },
+                  "& .MuiSvgIcon-root": {
+                    color: "inherit",
+                  },
                 }}
-                title={`${activeSlotEntry.session.displayName} · ${activeSlotEntry.session.game}`}
               >
-                {activeSlotEntry.session.displayName} · {activeSlotEntry.session.game}
-              </Typography>
+                <InputLabel
+                  id="active-slot-label"
+                  sx={{ color: "rgba(255,255,255,0.85)", "&.Mui-focused": { color: "rgba(255,255,255,0.95)" } }}
+                >
+                  Active slot
+                </InputLabel>
+                <Select
+                  labelId="active-slot-label"
+                  id="active-slot-select"
+                  label="Active slot"
+                  value={visibleSlotKey ?? ""}
+                  onChange={(e) => setActiveSlotKey(String(e.target.value))}
+                  inputProps={{ "aria-label": "Active slot" }}
+                  renderValue={(key) => {
+                    const entry = slotSessions.find((s) => s.key === key);
+                    if (!entry || !room) return "";
+                    const col =
+                      connectionColors[
+                        slotConnectionColorKey(
+                          host,
+                          port,
+                          room.seed_name,
+                          entry.session.connected.team,
+                          entry.session.connected.slot,
+                        )
+                      ];
+                    return (
+                      <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
+                        {col ? (
+                          <Box
+                            component="span"
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              bgcolor: col,
+                              flexShrink: 0,
+                            }}
+                            aria-hidden
+                          />
+                        ) : null}
+                        <Typography component="span" variant="body2" noWrap sx={{ minWidth: 0 }}>
+                          {`${entry.session.displayName} · ${entry.session.game}`}
+                        </Typography>
+                      </Stack>
+                    );
+                  }}
+                >
+                  {slotSessions.map((entry) => {
+                    const col = room
+                      ? connectionColors[
+                          slotConnectionColorKey(
+                            host,
+                            port,
+                            room.seed_name,
+                            entry.session.connected.team,
+                            entry.session.connected.slot,
+                          )
+                        ]
+                      : undefined;
+                    return (
+                      <MenuItem key={entry.key} value={entry.key}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center", minWidth: 0 }}>
+                          {col ? (
+                            <Box
+                              component="span"
+                              sx={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: "50%",
+                                bgcolor: col,
+                                flexShrink: 0,
+                              }}
+                              aria-hidden
+                            />
+                          ) : null}
+                          <Typography component="span" variant="body2" noWrap sx={{ minWidth: 0 }}>
+                            {`${entry.session.displayName} · ${entry.session.game}`}
+                          </Typography>
+                        </Stack>
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
               <Button
                 color="inherit"
-                variant="outlined"
                 size="small"
+                variant={showRoomInfo ? "contained" : "outlined"}
+                aria-pressed={showRoomInfo}
+                aria-expanded={showRoomInfo}
                 onClick={() => setShowRoomInfo((prev) => !prev)}
-                sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
+                sx={{
+                  borderColor: "rgba(255,255,255,0.5)",
+                  flexShrink: 0,
+                  ...(showRoomInfo
+                    ? {
+                        bgcolor: "rgba(255,255,255,0.92)",
+                        color: "primary.main",
+                        borderColor: "transparent",
+                        "&:hover": {
+                          bgcolor: "rgba(255,255,255,0.85)",
+                          borderColor: "transparent",
+                        },
+                      }
+                    : {}),
+                }}
               >
                 Add slot
               </Button>
               <Button
                 color="inherit"
-                variant="outlined"
                 size="small"
+                variant="text"
                 onClick={() => setSessionDialogOpen(true)}
-                sx={{ borderColor: "rgba(255,255,255,0.5)", flexShrink: 0 }}
+                sx={{
+                  flexShrink: 0,
+                  color: "inherit",
+                  opacity: 0.95,
+                  textDecoration: "underline",
+                  textUnderlineOffset: 2,
+                }}
               >
                 Log out
               </Button>
@@ -346,6 +520,18 @@ function App() {
                         slotSession={entry.session}
                         onNotify={setSnackbarMessage}
                         registeredGames={registeredGames}
+                        connectionColor={
+                          connectionColors[
+                            slotConnectionColorKey(
+                              host,
+                              port,
+                              room.seed_name,
+                              entry.session.connected.team,
+                              entry.session.connected.slot,
+                            )
+                          ]
+                        }
+                        connectionColorsByTeamSlot={connectionColorsByTeamSlot}
                       />
                     </Box>
                   ))}

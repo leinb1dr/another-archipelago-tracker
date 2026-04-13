@@ -36,7 +36,12 @@ export type RoomInfoViewProps = {
   serverHost: string;
   serverPort: string;
   recentGameSignIns: RecentGameSignIn[];
-  connectedSlotSignIns?: Array<{ game: string; slotName: string; displayName: string }>;
+  connectedSlotSignIns?: Array<{
+    game: string;
+    slotName: string;
+    displayName: string;
+    color?: string;
+  }>;
   onDeleteGameSignIn: (entry: RecentGameSignIn) => void;
   slotConnectBusy?: boolean;
   slotConnectError?: string | null;
@@ -91,9 +96,12 @@ export function RoomInfoView({
     [recentGameSignIns, serverHost, serverPort],
   );
   const connectedBySavedKey = useMemo(() => {
-    const map = new Map<string, { displayName: string }>();
+    const map = new Map<string, { displayName: string; color?: string }>();
     for (const entry of connectedSlotSignIns) {
-      map.set(`${entry.game.trim()}:${entry.slotName.trim()}`, { displayName: entry.displayName });
+      map.set(`${entry.game.trim()}:${entry.slotName.trim()}`, {
+        displayName: entry.displayName,
+        color: entry.color,
+      });
     }
     return map;
   }, [connectedSlotSignIns]);
@@ -273,6 +281,15 @@ export function RoomInfoView({
                                   label={connected ? `Connected (${connected.displayName})` : "Disconnected"}
                                   color={connected ? "success" : "default"}
                                   variant={connected ? "filled" : "outlined"}
+                                  sx={
+                                    connected?.color
+                                      ? {
+                                          borderLeft: 4,
+                                          borderColor: connected.color,
+                                          pl: 0.75,
+                                        }
+                                      : undefined
+                                  }
                                 />
                               </Stack>
                             }

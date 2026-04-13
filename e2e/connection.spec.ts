@@ -58,7 +58,9 @@ test.describe("connection", () => {
 
     await expect(page.getByText("Connected as Dandoku.")).toBeVisible();
     await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Slot 1 \(1\)/ })).toBeVisible();
+    const activeSlotCombobox = page.getByRole("combobox", { name: /Active slot/i });
+    await expect(activeSlotCombobox).toBeVisible();
+    await expect(activeSlotCombobox).toContainText("Dandoku");
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Add slot", level: 2 })).toHaveCount(0);
 
@@ -117,12 +119,13 @@ test.describe("connection", () => {
     await page.getByLabel("Slot name").fill("Ranger");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByText("Connected as Ranger.")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Slot 2 \(2\)/ })).toBeVisible();
+    await expect(activeSlotCombobox).toContainText("Ranger");
     await expect(page.getByText(/Ranger · Second Quest/)).toBeVisible();
 
-    await page.getByRole("banner").getByRole("button", { name: /Slot 2 \(2\)/ }).click();
+    await activeSlotCombobox.click();
+    await page.getByRole("option", { name: "Dandoku · Pick Me Game" }).click();
     await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Slot 1 \(2\)/ })).toBeVisible();
+    await expect(activeSlotCombobox).toContainText("Dandoku");
 
     assertNoPageErrors();
   });
