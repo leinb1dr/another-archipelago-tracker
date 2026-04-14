@@ -9,9 +9,14 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { RecentConnection } from "../connection/recentConnectionsStorage";
 
+function formatFirstConnected(ms: number): string {
+  return new Date(ms).toLocaleString();
+}
+
 export type ConnectionViewProps = {
   host: string;
   port: string;
+  connectionName: string;
   hostError: string;
   portError: string;
   connecting: boolean;
@@ -19,6 +24,7 @@ export type ConnectionViewProps = {
   recentConnections: RecentConnection[];
   onHostChange: (value: string) => void;
   onPortChange: (value: string) => void;
+  onConnectionNameChange: (value: string) => void;
   onSubmit: () => void;
   onConnectRecent: (rec: RecentConnection) => void;
   onDeleteRecent: (rec: RecentConnection) => void;
@@ -27,6 +33,7 @@ export type ConnectionViewProps = {
 export function ConnectionView({
   host,
   port,
+  connectionName,
   hostError,
   portError,
   connecting,
@@ -34,6 +41,7 @@ export function ConnectionView({
   recentConnections,
   onHostChange,
   onPortChange,
+  onConnectionNameChange,
   onSubmit,
   onConnectRecent,
   onDeleteRecent,
@@ -54,44 +62,63 @@ export function ConnectionView({
             Recent connections
           </Typography>
           <List dense disablePadding sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
-            {recentConnections.map((rec) => (
-              <ListItem
-                key={`${rec.host}:${rec.port}`}
-                secondaryAction={
-                  <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-                    <Button
-                      type="button"
-                      size="small"
-                      variant="contained"
-                      disabled={connecting}
-                      onClick={() => onConnectRecent(rec)}
-                    >
-                      Connect
-                    </Button>
-                    <Button
-                      type="button"
-                      size="small"
-                      color="inherit"
-                      disabled={connecting}
-                      onClick={() => onDeleteRecent(rec)}
-                      aria-label={`Delete ${rec.host} port ${rec.port}`}
-                    >
-                      Delete
-                    </Button>
-                  </Stack>
-                }
-                sx={{ pr: 22 }}
-              >
-                <ListItemText
-                  primary={<Typography variant="body2">{rec.host}</Typography>}
-                  secondary={
-                    <Typography component="span" variant="caption" color="text.secondary">
-                      Port {rec.port}
-                    </Typography>
+            {recentConnections.map((rec) => {
+              const title = rec.name?.trim() ? rec.name.trim() : rec.host;
+              const subtitleLine1 = rec.name?.trim()
+                ? `${rec.host} · Port ${rec.port}`
+                : `Port ${rec.port}`;
+              const deleteLabel = rec.name?.trim()
+                ? `Delete ${rec.name.trim()} ${rec.host} port ${rec.port}`
+                : `Delete ${rec.host} port ${rec.port}`;
+              return (
+                <ListItem
+                  key={`${rec.host}:${rec.port}`}
+                  secondaryAction={
+                    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                      <Button
+                        type="button"
+                        size="small"
+                        variant="contained"
+                        disabled={connecting}
+                        onClick={() => onConnectRecent(rec)}
+                      >
+                        Connect
+                      </Button>
+                      <Button
+                        type="button"
+                        size="small"
+                        color="inherit"
+                        disabled={connecting}
+                        onClick={() => onDeleteRecent(rec)}
+                        aria-label={deleteLabel}
+                      >
+                        Delete
+                      </Button>
+                    </Stack>
                   }
-                />
-              </ListItem>
-            ))}
+                  sx={{ pr: 22 }}
+                >
+                  <ListItemText
+                    disableTypography
+                    primary={
+                      <Stack spacing={0.25} sx={{ pr: 1 }}>
+                        <Typography variant="body2" component="div">
+                          {title}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" component="div">
+                          {subtitleLine1}
+                        </Typography>
+                        {rec.firstConnectedAt != null ? (
+                          <Typography variant="caption" color="text.secondary" component="div">
+                            First connected {formatFirstConnected(rec.firstConnectedAt)}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    }
+                  />
+                </ListItem>
+              );
+            })}
           </List>
         </Box>
       ) : null}
@@ -101,6 +128,17 @@ export function ConnectionView({
           {formError}
         </Alert>
       ) : null}
+
+      <TextField
+        label="Connection name"
+        value={connectionName}
+        onChange={(e) => onConnectionNameChange(e.target.value)}
+        disabled={connecting}
+        fullWidth
+        autoComplete="off"
+        helperText="Optional label for this server, shown in recent connections."
+        slotProps={{ htmlInput: { "aria-label": "Connection name", autoComplete: "off" } }}
+      />
 
       <TextField
         label="Host"

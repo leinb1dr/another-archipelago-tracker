@@ -339,7 +339,7 @@ export function ChecksView({
                 </TableContainer>
               )}
             </Stack>
-          ) : (
+          ) : subTab === SUB_TAB_SENT ? (
             <>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ alignItems: { sm: "flex-end" } }}>
                 <TextField
@@ -486,7 +486,7 @@ export function ChecksView({
                 </Accordion>
               ))}
             </>
-          )}
+          ) : null}
         </Stack>
       </CardContent>
     </Card>

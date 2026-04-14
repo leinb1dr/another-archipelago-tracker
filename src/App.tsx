@@ -101,6 +101,7 @@ function App() {
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
+  const [connectionName, setConnectionName] = useState("");
   const [recentGameSignIns, setRecentGameSignIns] = useState<RecentGameSignIn[]>([]);
   const [sessionHandshakeRaw, setSessionHandshakeRaw] = useState<string | null>(null);
   const [connectionColors, setConnectionColors] = useState(loadSlotConnectionColors);
@@ -149,7 +150,7 @@ function App() {
     };
   }, [roomSocket, slotSessions]);
 
-  const runConnect = useCallback(async (hostRaw: string, portRaw: string) => {
+  const runConnect = useCallback(async (hostRaw: string, portRaw: string, friendlyName?: string) => {
     const he = validateHost(hostRaw);
     const pe = validatePort(portRaw);
     setHostError(he);
@@ -190,7 +191,7 @@ function App() {
       setRoom(nextRoom);
       setSessionHandshakeRaw(firstMessageRaw);
       setRoomSocket(socket);
-      upsertRecentConnection(nextHost, nextPort);
+      upsertRecentConnection(nextHost, nextPort, friendlyName);
       setRecentConnections(loadRecentConnections());
     } catch (e) {
       const msg = e instanceof Error ? e.message : CONNECTION_FAILED_MESSAGE;
@@ -201,8 +202,8 @@ function App() {
   }, [host, port, room, roomSocket]);
 
   const handleConnect = useCallback(() => {
-    void runConnect(host, port);
-  }, [host, port, runConnect]);
+    void runConnect(host, port, connectionName);
+  }, [host, port, connectionName, runConnect]);
 
   const performSlotLogout = useCallback(() => {
     if (!activeSlotEntry) return;
@@ -572,6 +573,7 @@ function App() {
               <ConnectionView
                 host={host}
                 port={port}
+                connectionName={connectionName}
                 hostError={hostError}
                 portError={portError}
                 connecting={connecting}
@@ -587,9 +589,16 @@ function App() {
                   if (portError) setPortError("");
                   if (formError) setFormError(null);
                 }}
+                onConnectionNameChange={(v) => {
+                  setConnectionName(v);
+                  if (formError) setFormError(null);
+                }}
                 onSubmit={handleConnect}
                 onConnectRecent={(rec) => {
-                  void runConnect(rec.host, rec.port);
+                  setHost(rec.host);
+                  setPort(rec.port);
+                  setConnectionName(rec.name ?? "");
+                  void runConnect(rec.host, rec.port, rec.name);
                 }}
                 onDeleteRecent={(rec) => {
                   removeRecentConnection(rec.host, rec.port);
