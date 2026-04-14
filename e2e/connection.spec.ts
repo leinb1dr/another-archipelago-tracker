@@ -71,6 +71,8 @@ test.describe("connection", () => {
     await expect(page.getByText("3", { exact: true })).toBeVisible();
 
     await page.getByRole("tab", { name: "Checks", exact: true }).click();
+    // Default Checks sub-tab is Received; location rows live under Sent.
+    await page.getByRole("tab", { name: "Sent" }).click();
     await expect(page.getByText("E2E Location Alpha")).toBeVisible();
     await expect(page.getByText("E2E Scout Target")).toBeVisible();
 
