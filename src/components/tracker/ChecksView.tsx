@@ -135,7 +135,7 @@ export function ChecksView({
   } = tracker;
   const maps = mapsByGame[slotSession.game];
   const registeredGameSet = new Set(registeredGames);
-  const [subTab, setSubTab] = useState(SUB_TAB_SENT);
+  const [subTab, setSubTab] = useState(SUB_TAB_RECEIVED);
   const [querySent, setQuerySent] = useState("");
   const [queryReceived, setQueryReceived] = useState("");
   const [hideFinished, setHideFinished] = useState(true);

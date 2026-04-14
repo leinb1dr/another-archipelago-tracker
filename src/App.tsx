@@ -11,6 +11,7 @@ import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
+import { alpha, useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildArchipelagoWsUrl,
@@ -46,6 +47,7 @@ import {
 } from "./connection/slotConnectionColorsStorage";
 import { ConnectionView } from "./components/ConnectionView";
 import { MessageLogPanel } from "./components/MessageLogPanel";
+import { OptionsMenu } from "./components/OptionsMenu";
 import { RoomInfoView } from "./components/RoomInfoView";
 import { SessionStatusDialog } from "./components/SessionStatusDialog";
 import { TrackerShell } from "./components/TrackerShell";
@@ -76,6 +78,13 @@ type SlotSessionEntry = {
 };
 
 function App() {
+  const theme = useTheme();
+  const appBarContrast = theme.palette.primary.contrastText;
+  const appBarOutline = alpha(appBarContrast, 0.5);
+  const appBarOutlineStrong = alpha(appBarContrast, 0.85);
+  const appBarLabel = alpha(appBarContrast, 0.85);
+  const appBarLabelFocused = alpha(appBarContrast, 0.95);
+
   const [host, setHost] = useState(DEFAULT_HOST);
   const [port, setPort] = useState("");
   const [hostError, setHostError] = useState("");
@@ -334,38 +343,42 @@ function App() {
             ) : null}
           </Stack>
           <Box sx={{ flexGrow: 1 }} />
-          {activeSlotEntry ? (
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ alignItems: "center", maxWidth: "min(100%, 560px)", minWidth: 0 }}
-            >
-              <FormControl
-                size="small"
-                sx={{
-                  minWidth: { xs: 140, sm: 200 },
-                  maxWidth: { xs: 200, sm: 280 },
-                  flexShrink: 1,
-                  "& .MuiOutlinedInput-root": {
-                    color: "inherit",
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "rgba(255,255,255,0.5)",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "rgba(255,255,255,0.85)",
-                  },
-                  "& .MuiSvgIcon-root": {
-                    color: "inherit",
-                  },
-                }}
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexShrink: 0 }}>
+            {activeSlotEntry ? (
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: "center", maxWidth: "min(100%, 560px)", minWidth: 0 }}
               >
-                <InputLabel
-                  id="active-slot-label"
-                  sx={{ color: "rgba(255,255,255,0.85)", "&.Mui-focused": { color: "rgba(255,255,255,0.95)" } }}
+                <FormControl
+                  size="small"
+                  sx={{
+                    minWidth: { xs: 140, sm: 200 },
+                    maxWidth: { xs: 200, sm: 280 },
+                    flexShrink: 1,
+                    "& .MuiOutlinedInput-root": {
+                      color: "inherit",
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: appBarOutline,
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: appBarOutlineStrong,
+                    },
+                    "& .MuiSvgIcon-root": {
+                      color: "inherit",
+                    },
+                  }}
                 >
-                  Active slot
-                </InputLabel>
+                  <InputLabel
+                    id="active-slot-label"
+                    sx={{
+                      color: appBarLabel,
+                      "&.Mui-focused": { color: appBarLabelFocused },
+                    }}
+                  >
+                    Active slot
+                  </InputLabel>
                 <Select
                   labelId="active-slot-label"
                   id="active-slot-select"
@@ -453,15 +466,15 @@ function App() {
                 aria-expanded={showRoomInfo}
                 onClick={() => setShowRoomInfo((prev) => !prev)}
                 sx={{
-                  borderColor: "rgba(255,255,255,0.5)",
+                  borderColor: appBarOutline,
                   flexShrink: 0,
                   ...(showRoomInfo
                     ? {
-                        bgcolor: "rgba(255,255,255,0.92)",
-                        color: "primary.main",
+                        bgcolor: "background.paper",
+                        color: "text.primary",
                         borderColor: "transparent",
                         "&:hover": {
-                          bgcolor: "rgba(255,255,255,0.85)",
+                          bgcolor: "action.hover",
                           borderColor: "transparent",
                         },
                       }
@@ -485,8 +498,10 @@ function App() {
               >
                 Log out
               </Button>
-            </Stack>
-          ) : null}
+              </Stack>
+            ) : null}
+            <OptionsMenu />
+          </Stack>
         </Toolbar>
       </AppBar>
       <Box
