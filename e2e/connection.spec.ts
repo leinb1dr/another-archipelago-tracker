@@ -106,6 +106,29 @@ test.describe("connection", () => {
     await page.getByRole("tab", { name: "All (2)" }).click();
     await expect(page.getByRole("columnheader", { name: "Hint status" })).toBeVisible();
     await expect(page.getByText("Priority").first()).toBeVisible();
+    const filterRows = await Promise.all([
+      page.getByLabel("Item").boundingBox(),
+      page.getByLabel("Location").boundingBox(),
+      page.getByLabel("Receiver").boundingBox(),
+      page.getByLabel("Finder").boundingBox(),
+      page.getByLabel("Checked").boundingBox(),
+      page.getByLabel("Hint status").first().boundingBox(),
+    ]);
+    const filterTops = filterRows.map((row) => row?.y ?? Number.NaN);
+    expect(filterTops.every((top) => Number.isFinite(top))).toBeTruthy();
+    expect(Math.max(...filterTops) - Math.min(...filterTops)).toBeLessThan(2);
+
+    const hintStatusHeader = page.getByRole("columnheader", { name: "Hint status" });
+    const tableContainer = hintStatusHeader
+      .locator("xpath=ancestor::div[contains(@class,'MuiTableContainer-root')]")
+      .first();
+    const containerBox = await tableContainer.boundingBox();
+    const headerBox = await hintStatusHeader.boundingBox();
+    expect(containerBox).not.toBeNull();
+    expect(headerBox).not.toBeNull();
+    expect((headerBox?.x ?? 0) + (headerBox?.width ?? 0)).toBeLessThanOrEqual(
+      (containerBox?.x ?? 0) + (containerBox?.width ?? 0) + 1,
+    );
 
     await page.getByRole("tab", { name: "Checks", exact: true }).click();
     await page.getByRole("tab", { name: /^Received \(\d+\)$/ }).click();

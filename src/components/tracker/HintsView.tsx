@@ -10,6 +10,7 @@ import MenuItem from "@mui/material/MenuItem";
 import OutlinedInput from "@mui/material/OutlinedInput";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
+import TableContainer from "@mui/material/TableContainer";
 import Tab from "@mui/material/Tab";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -369,7 +370,14 @@ export function HintsView({
 
   const thirdColumnLabel = tab === 0 ? "Found in" : "Goes to";
 
-  const selectSx = { minWidth: 140, maxWidth: 220, flex: "1 1 140px" };
+  const selectSx = { minWidth: 120, maxWidth: 180, flex: "1 1 120px" };
+  const filterRowSx = {
+    alignItems: "flex-end",
+    flexWrap: "nowrap",
+    overflowX: "auto",
+    pb: 0.5,
+  };
+  const textFilterSx = { minWidth: 90, flex: "1 1 110px" };
 
   return (
     <Card variant="outlined">
@@ -398,21 +406,21 @@ export function HintsView({
                   <Stack
                     direction="row"
                     spacing={1}
-                    sx={{ flexWrap: "wrap", alignItems: "flex-end" }}
+                    sx={filterRowSx}
                   >
                     <TextField
                       label="Item"
                       size="small"
                       value={filtersAll.item}
                       onChange={(e) => setFiltersAll((p) => ({ ...p, item: e.target.value }))}
-                      sx={{ minWidth: 100, flex: "1 1 120px" }}
+                      sx={textFilterSx}
                     />
                     <TextField
                       label="Location"
                       size="small"
                       value={filtersAll.location}
                       onChange={(e) => setFiltersAll((p) => ({ ...p, location: e.target.value }))}
-                      sx={{ minWidth: 100, flex: "1 1 120px" }}
+                      sx={textFilterSx}
                     />
                     <FormControl size="small" sx={selectSx}>
                       <InputLabel id="hints-filter-receiver">Receiver</InputLabel>
@@ -516,14 +524,14 @@ export function HintsView({
                   <Stack
                     direction="row"
                     spacing={1}
-                    sx={{ flexWrap: "wrap", alignItems: "flex-end" }}
+                    sx={filterRowSx}
                   >
                     <TextField
                       label="Item"
                       size="small"
                       value={filtersSub.item}
                       onChange={(e) => setFiltersSub((p) => ({ ...p, item: e.target.value }))}
-                      sx={{ minWidth: 100, flex: "1 1 120px" }}
+                      sx={textFilterSx}
                     />
                     {tab === 1 ? (
                       <TextField
@@ -531,7 +539,7 @@ export function HintsView({
                         size="small"
                         value={filtersSub.location}
                         onChange={(e) => setFiltersSub((p) => ({ ...p, location: e.target.value }))}
-                        sx={{ minWidth: 100, flex: "1 1 120px" }}
+                        sx={textFilterSx}
                       />
                     ) : null}
                     <FormControl size="small" sx={selectSx}>
@@ -613,171 +621,175 @@ export function HintsView({
               {filteredRows.length === 0 ? (
                 <Typography color="text.secondary">No hints match the current filters.</Typography>
               ) : tab === 2 ? (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item</TableCell>
-                      <TableCell>Location</TableCell>
-                      <TableCell>Receiver</TableCell>
-                      <TableCell>Finder</TableCell>
-                      <TableCell align="center">Checked</TableCell>
-                      <TableCell>Hint status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredRows.map((h, i) => {
-                      const itemGame = gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game;
-                      const locGame = gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game;
-                      return (
-                        <TableRow key={`all-${h.location}-${h.item}-${i}`}>
-                          <TableCell>
-                            <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-                              <Typography variant="body2">
-                                {resolveItemName(mapsByGame, h.item, itemGame)}
-                              </Typography>
-                              <GameNameCaption
-                                game={itemGame}
-                                registered={registeredGameSet.has(itemGame)}
-                                accentColor={
-                                  connectionColorsByTeamSlot
-                                    ? accentColorForNetworkSlot(
-                                        players,
-                                        h.receiving_player,
-                                        connectionColorsByTeamSlot,
-                                      )
-                                    : undefined
-                                }
+                <TableContainer sx={{ overflowX: "auto" }}>
+                  <Table size="small" sx={{ minWidth: 980 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Item</TableCell>
+                        <TableCell>Location</TableCell>
+                        <TableCell>Receiver</TableCell>
+                        <TableCell>Finder</TableCell>
+                        <TableCell align="center">Checked</TableCell>
+                        <TableCell>Hint status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredRows.map((h, i) => {
+                        const itemGame = gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game;
+                        const locGame = gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game;
+                        return (
+                          <TableRow key={`all-${h.location}-${h.item}-${i}`}>
+                            <TableCell>
+                              <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
+                                <Typography variant="body2">
+                                  {resolveItemName(mapsByGame, h.item, itemGame)}
+                                </Typography>
+                                <GameNameCaption
+                                  game={itemGame}
+                                  registered={registeredGameSet.has(itemGame)}
+                                  accentColor={
+                                    connectionColorsByTeamSlot
+                                      ? accentColorForNetworkSlot(
+                                          players,
+                                          h.receiving_player,
+                                          connectionColorsByTeamSlot,
+                                        )
+                                      : undefined
+                                  }
+                                />
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
+                                <Typography variant="body2">
+                                  {resolveLocationName(mapsByGame, locGame, h.location)}
+                                </Typography>
+                                <GameNameCaption
+                                  game={locGame}
+                                  registered={registeredGameSet.has(locGame)}
+                                  accentColor={
+                                    connectionColorsByTeamSlot
+                                      ? accentColorForNetworkSlot(
+                                          players,
+                                          h.finding_player,
+                                          connectionColorsByTeamSlot,
+                                        )
+                                      : undefined
+                                  }
+                                />
+                              </Stack>
+                            </TableCell>
+                            <TableCell>{playerAlias(players, h.receiving_player)}</TableCell>
+                            <TableCell>{playerAlias(players, h.finding_player)}</TableCell>
+                            <TableCell align="center">
+                              {h.found ? (
+                                <Chip size="small" label="Found" color="success" variant="outlined" />
+                              ) : (
+                                <Chip size="small" label="Open" variant="outlined" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <HintStatusField
+                                h={h}
+                                tracker={tracker}
+                                socket={socket}
+                                statusBusyKey={statusBusyKey}
+                                setStatusBusyKey={setStatusBusyKey}
+                                setUpdateHintError={setUpdateHintError}
                               />
-                            </Stack>
-                          </TableCell>
-                          <TableCell>
-                            <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-                              <Typography variant="body2">
-                                {resolveLocationName(mapsByGame, locGame, h.location)}
-                              </Typography>
-                              <GameNameCaption
-                                game={locGame}
-                                registered={registeredGameSet.has(locGame)}
-                                accentColor={
-                                  connectionColorsByTeamSlot
-                                    ? accentColorForNetworkSlot(
-                                        players,
-                                        h.finding_player,
-                                        connectionColorsByTeamSlot,
-                                      )
-                                    : undefined
-                                }
-                              />
-                            </Stack>
-                          </TableCell>
-                          <TableCell>{playerAlias(players, h.receiving_player)}</TableCell>
-                          <TableCell>{playerAlias(players, h.finding_player)}</TableCell>
-                          <TableCell align="center">
-                            {h.found ? (
-                              <Chip size="small" label="Found" color="success" variant="outlined" />
-                            ) : (
-                              <Chip size="small" label="Open" variant="outlined" />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <HintStatusField
-                              h={h}
-                              tracker={tracker}
-                              socket={socket}
-                              statusBusyKey={statusBusyKey}
-                              setStatusBusyKey={setStatusBusyKey}
-                              setUpdateHintError={setUpdateHintError}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Item</TableCell>
-                      <TableCell>Location</TableCell>
-                      <TableCell>{tab === 0 ? "Found in" : "Goes to"}</TableCell>
-                      <TableCell align="right">Checked</TableCell>
-                      <TableCell>Hint status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredRows.map((h, i) => {
-                      const itemGame = gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game;
-                      const locGame = gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game;
-                      return (
-                        <TableRow key={`${h.location}-${h.item}-${i}`}>
-                          <TableCell>
-                            <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-                              <Typography variant="body2">
-                                {resolveItemName(mapsByGame, h.item, itemGame)}
-                              </Typography>
-                              <GameNameCaption
-                                game={itemGame}
-                                registered={registeredGameSet.has(itemGame)}
-                                accentColor={
-                                  connectionColorsByTeamSlot
-                                    ? accentColorForNetworkSlot(
-                                        players,
-                                        h.receiving_player,
-                                        connectionColorsByTeamSlot,
-                                      )
-                                    : undefined
-                                }
+                <TableContainer sx={{ overflowX: "auto" }}>
+                  <Table size="small" sx={{ minWidth: 820 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Item</TableCell>
+                        <TableCell>Location</TableCell>
+                        <TableCell>{tab === 0 ? "Found in" : "Goes to"}</TableCell>
+                        <TableCell align="right">Checked</TableCell>
+                        <TableCell>Hint status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredRows.map((h, i) => {
+                        const itemGame = gameForHintItem(slotGames, h.receiving_player) ?? slotSession.game;
+                        const locGame = gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game;
+                        return (
+                          <TableRow key={`${h.location}-${h.item}-${i}`}>
+                            <TableCell>
+                              <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
+                                <Typography variant="body2">
+                                  {resolveItemName(mapsByGame, h.item, itemGame)}
+                                </Typography>
+                                <GameNameCaption
+                                  game={itemGame}
+                                  registered={registeredGameSet.has(itemGame)}
+                                  accentColor={
+                                    connectionColorsByTeamSlot
+                                      ? accentColorForNetworkSlot(
+                                          players,
+                                          h.receiving_player,
+                                          connectionColorsByTeamSlot,
+                                        )
+                                      : undefined
+                                  }
+                                />
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
+                                <Typography variant="body2">
+                                  {resolveLocationName(mapsByGame, locGame, h.location)}
+                                </Typography>
+                                <GameNameCaption
+                                  game={locGame}
+                                  registered={registeredGameSet.has(locGame)}
+                                  accentColor={
+                                    connectionColorsByTeamSlot
+                                      ? accentColorForNetworkSlot(
+                                          players,
+                                          h.finding_player,
+                                          connectionColorsByTeamSlot,
+                                        )
+                                      : undefined
+                                  }
+                                />
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              {tab === 0
+                                ? playerAlias(players, h.finding_player)
+                                : playerAlias(players, h.receiving_player)}
+                            </TableCell>
+                            <TableCell align="right">
+                              {h.found ? (
+                                <Chip size="small" label="Found" color="success" variant="outlined" />
+                              ) : (
+                                <Chip size="small" label="Open" variant="outlined" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <HintStatusField
+                                h={h}
+                                tracker={tracker}
+                                socket={socket}
+                                statusBusyKey={statusBusyKey}
+                                setStatusBusyKey={setStatusBusyKey}
+                                setUpdateHintError={setUpdateHintError}
                               />
-                            </Stack>
-                          </TableCell>
-                          <TableCell>
-                            <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-                              <Typography variant="body2">
-                                {resolveLocationName(mapsByGame, locGame, h.location)}
-                              </Typography>
-                              <GameNameCaption
-                                game={locGame}
-                                registered={registeredGameSet.has(locGame)}
-                                accentColor={
-                                  connectionColorsByTeamSlot
-                                    ? accentColorForNetworkSlot(
-                                        players,
-                                        h.finding_player,
-                                        connectionColorsByTeamSlot,
-                                      )
-                                    : undefined
-                                }
-                              />
-                            </Stack>
-                          </TableCell>
-                          <TableCell>
-                            {tab === 0
-                              ? playerAlias(players, h.finding_player)
-                              : playerAlias(players, h.receiving_player)}
-                          </TableCell>
-                          <TableCell align="right">
-                            {h.found ? (
-                              <Chip size="small" label="Found" color="success" variant="outlined" />
-                            ) : (
-                              <Chip size="small" label="Open" variant="outlined" />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <HintStatusField
-                              h={h}
-                              tracker={tracker}
-                              socket={socket}
-                              statusBusyKey={statusBusyKey}
-                              setStatusBusyKey={setStatusBusyKey}
-                              setUpdateHintError={setUpdateHintError}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
             </>
           )}
