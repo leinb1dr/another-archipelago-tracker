@@ -107,12 +107,12 @@ test.describe("connection", () => {
     await expect(page.getByRole("columnheader", { name: "Hint status" })).toBeVisible();
     await expect(page.getByText("Priority").first()).toBeVisible();
     const filterRows = await Promise.all([
-      page.getByLabel("Item").boundingBox(),
-      page.getByLabel("Location").boundingBox(),
-      page.getByLabel("Receiver").boundingBox(),
-      page.getByLabel("Finder").boundingBox(),
-      page.getByLabel("Checked").boundingBox(),
-      page.getByLabel("Hint status").first().boundingBox(),
+      page.getByRole("textbox", { name: "Item" }).boundingBox(),
+      page.getByRole("textbox", { name: "Location", exact: true }).boundingBox(),
+      page.getByRole("combobox", { name: "Receiver" }).boundingBox(),
+      page.getByRole("combobox", { name: "Finder" }).boundingBox(),
+      page.getByRole("combobox", { name: "Checked", exact: true }).boundingBox(),
+      page.getByRole("combobox", { name: "Hint status" }).boundingBox(),
     ]);
     const filterTops = filterRows.map((row) => row?.y ?? Number.NaN);
     expect(filterTops.every((top) => Number.isFinite(top))).toBeTruthy();

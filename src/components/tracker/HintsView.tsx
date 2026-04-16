@@ -98,7 +98,7 @@ function HintStatusField({
   };
 
   return (
-    <FormControl size="small" sx={{ minWidth: 150 }}>
+    <FormControl size="small" sx={{ minWidth: 0, width: "100%" }}>
       <Select
         value={selectValue}
         disabled={anyBusy}
@@ -622,15 +622,17 @@ export function HintsView({
                 <Typography color="text.secondary">No hints match the current filters.</Typography>
               ) : tab === 2 ? (
                 <TableContainer sx={{ overflowX: "auto" }}>
-                  <Table size="small" sx={{ minWidth: 980 }}>
+                  <Table size="small" sx={{ width: "100%", tableLayout: "fixed" }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell>Item</TableCell>
-                        <TableCell>Location</TableCell>
-                        <TableCell>Receiver</TableCell>
-                        <TableCell>Finder</TableCell>
-                        <TableCell align="center">Checked</TableCell>
-                        <TableCell>Hint status</TableCell>
+                        <TableCell sx={{ width: "23%" }}>Item</TableCell>
+                        <TableCell sx={{ width: "23%" }}>Location</TableCell>
+                        <TableCell sx={{ width: "12%" }}>Receiver</TableCell>
+                        <TableCell sx={{ width: "12%" }}>Finder</TableCell>
+                        <TableCell align="center" sx={{ width: "8%" }}>
+                          Checked
+                        </TableCell>
+                        <TableCell sx={{ width: "22%" }}>Hint status</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -639,7 +641,7 @@ export function HintsView({
                         const locGame = gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game;
                         return (
                           <TableRow key={`all-${h.location}-${h.item}-${i}`}>
-                            <TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
                               <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
                                 <Typography variant="body2">
                                   {resolveItemName(mapsByGame, h.item, itemGame)}
@@ -659,7 +661,7 @@ export function HintsView({
                                 />
                               </Stack>
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
                               <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
                                 <Typography variant="body2">
                                   {resolveLocationName(mapsByGame, locGame, h.location)}
@@ -679,8 +681,12 @@ export function HintsView({
                                 />
                               </Stack>
                             </TableCell>
-                            <TableCell>{playerAlias(players, h.receiving_player)}</TableCell>
-                            <TableCell>{playerAlias(players, h.finding_player)}</TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
+                              {playerAlias(players, h.receiving_player)}
+                            </TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
+                              {playerAlias(players, h.finding_player)}
+                            </TableCell>
                             <TableCell align="center">
                               {h.found ? (
                                 <Chip size="small" label="Found" color="success" variant="outlined" />
@@ -706,14 +712,16 @@ export function HintsView({
                 </TableContainer>
               ) : (
                 <TableContainer sx={{ overflowX: "auto" }}>
-                  <Table size="small" sx={{ minWidth: 820 }}>
+                  <Table size="small" sx={{ width: "100%", tableLayout: "fixed" }}>
                     <TableHead>
                       <TableRow>
-                        <TableCell>Item</TableCell>
-                        <TableCell>Location</TableCell>
-                        <TableCell>{tab === 0 ? "Found in" : "Goes to"}</TableCell>
-                        <TableCell align="right">Checked</TableCell>
-                        <TableCell>Hint status</TableCell>
+                        <TableCell sx={{ width: "29%" }}>Item</TableCell>
+                        <TableCell sx={{ width: "27%" }}>Location</TableCell>
+                        <TableCell sx={{ width: "15%" }}>{tab === 0 ? "Found in" : "Goes to"}</TableCell>
+                        <TableCell align="right" sx={{ width: "8%" }}>
+                          Checked
+                        </TableCell>
+                        <TableCell sx={{ width: "21%" }}>Hint status</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -722,7 +730,7 @@ export function HintsView({
                         const locGame = gameForHintLocation(slotGames, h.finding_player) ?? slotSession.game;
                         return (
                           <TableRow key={`${h.location}-${h.item}-${i}`}>
-                            <TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
                               <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
                                 <Typography variant="body2">
                                   {resolveItemName(mapsByGame, h.item, itemGame)}
@@ -742,7 +750,7 @@ export function HintsView({
                                 />
                               </Stack>
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
                               <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
                                 <Typography variant="body2">
                                   {resolveLocationName(mapsByGame, locGame, h.location)}
@@ -762,7 +770,7 @@ export function HintsView({
                                 />
                               </Stack>
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ overflowWrap: "anywhere" }}>
                               {tab === 0
                                 ? playerAlias(players, h.finding_player)
                                 : playerAlias(players, h.receiving_player)}
