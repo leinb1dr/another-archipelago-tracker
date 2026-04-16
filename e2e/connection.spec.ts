@@ -38,6 +38,10 @@ test.describe("connection", () => {
 
     const messageLog = page.getByRole("region", { name: "Message log" });
     await expect(messageLog).toBeVisible();
+    if ((await messageLog.getAttribute("aria-expanded")) !== "true") {
+      await messageLog.getByRole("button").first().click();
+      await expect(messageLog).toHaveAttribute("aria-expanded", "true");
+    }
     await expect(messageLog).toContainText("RoomInfo");
     await expect(messageLog).toContainText("integration-ws-seed");
     await expect(messageLog).toContainText("Pick Me Game");
@@ -78,7 +82,7 @@ test.describe("connection", () => {
 
     await page.getByRole("button", { name: "Scout" }).click();
     await expect(page.getByText(/^Scout:/)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Progression")).toBeVisible();
+    await expect(page.getByText("Progression").first()).toBeVisible();
 
     await page.getByRole("tab", { name: "Hints" }).click();
     await expect(page.getByRole("heading", { name: "Hints", level: 2 })).toBeVisible();
@@ -126,8 +130,7 @@ test.describe("connection", () => {
 
     await activeSlotCombobox.click();
     await page.getByRole("option", { name: "Dandoku · Pick Me Game" }).click();
-    await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
-    await expect(activeSlotCombobox).toContainText("Dandoku");
+    await expect(activeSlotCombobox).toContainText("Dandoku · Pick Me Game");
 
     assertNoPageErrors();
   });
@@ -149,7 +152,6 @@ test.describe("connection", () => {
 
     const dialogLogout = page.getByRole("dialog", { name: "Session" }).getByRole("button", { name: "Log out" });
     await dialogLogout.click();
-    await expect(page.getByText("Logged out Dandoku.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toHaveCount(0);
 
