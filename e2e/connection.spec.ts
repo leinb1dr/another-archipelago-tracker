@@ -35,13 +35,13 @@ test.describe("connection", () => {
     await expect(page.getByRole("banner")).toContainText("127.0.0.1:53087");
     const roomTracking = page.getByRole("region", { name: "Room tracking" });
     await expect(roomTracking).toBeVisible();
-    await expect(roomTracking).toContainText("Data package loaded");
-    await expect(roomTracking).toContainText("Known checks");
-    await expect(roomTracking).toContainText("5");
-    await expect(roomTracking).toContainText("Data package games");
-    await expect(roomTracking).toContainText("2/2");
     await expect(roomTracking).toContainText("Completed checks");
-    await expect(roomTracking).toContainText("Slot sign-in required");
+    await expect(roomTracking.getByRole("progressbar", { name: "Completed checks progress" })).toBeVisible();
+    await expect(roomTracking).toContainText("Sign in to load progress.");
+    await expect(roomTracking).not.toContainText("Data package loaded");
+    await expect(roomTracking).not.toContainText("Known checks");
+    await expect(roomTracking).not.toContainText("Known items");
+    await expect(roomTracking).not.toContainText("Data package games");
     const cachedSummaries = await page.evaluate(() => {
       const raw = localStorage.getItem("archipelago-tracker.roomProgressSummaries");
       return raw ? (JSON.parse(raw) as unknown) : null;
@@ -100,7 +100,9 @@ test.describe("connection", () => {
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Add slot", level: 2 })).toHaveCount(0);
 
+    const overallStatus = page.getByRole("region", { name: "Overall status" });
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
+    await expect(overallStatus.getByRole("progressbar", { name: "Completed checks progress" })).toBeVisible();
     await expect(page.getByText("33.3%")).toBeVisible();
     await expect(page.getByText("1 checked · 2 remaining")).toBeVisible();
     await expect(page.getByText("Hint points")).toBeVisible();

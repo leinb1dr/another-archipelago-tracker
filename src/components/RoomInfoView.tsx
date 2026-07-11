@@ -27,7 +27,7 @@ import {
 } from "../connection/multiSlotSessions";
 import type { RoomDataPackageState } from "../connection/useRoomDataPackage";
 import type { RoomInfo } from "../protocol/roomInfo";
-import { summarizeRoomDataPackage, type RoomProgressSummary } from "../tracker/roomProgressSummary";
+import type { RoomProgressSummary } from "../tracker/roomProgressSummary";
 import { RegisterSlotDialog, type SlotConnectedPayload } from "./RegisterSlotDialog";
 
 function formatVersion(v: { major: number; minor: number; build: number }): string {
@@ -45,37 +45,7 @@ function DetailItem({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-function MetricItem({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack spacing={0.5}>
-      <Typography variant="subtitle2" color="text.secondary">
-        {label}
-      </Typography>
-      <Typography variant="h6" component="p" sx={{ lineHeight: 1.2 }}>
-        {children}
-      </Typography>
-    </Stack>
-  );
-}
-
-function RoomTrackingOverview({
-  status,
-  summary,
-}: {
-  status: RoomDataPackageState["status"] | "cached";
-  summary: RoomProgressSummary;
-}) {
-  const hasTotals = status === "ready" || status === "cached";
-  const statusLabel =
-    status === "ready"
-      ? "Data package loaded"
-      : status === "cached"
-        ? "Cached totals"
-      : status === "loading"
-        ? "Loading data package"
-        : "RoomInfo only";
-  const statusColor = status === "ready" ? "success" : status === "cached" ? "info" : "default";
-
+function RoomTrackingOverview() {
   return (
     <Box
       component="section"
@@ -89,48 +59,19 @@ function RoomTrackingOverview({
       }}
     >
       <Stack spacing={1.5}>
-        <Stack direction="row" useFlexGap sx={{ alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-          <Typography variant="h6" component="h3">
-            Room tracking
-          </Typography>
-          <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" />
-        </Stack>
-        <Typography variant="body2" color="text.secondary">
-          Before game sign-in, the room socket can load RoomInfo and GetDataPackage. Totals are cached per seed;
-          completed and remaining checks arrive after slot sign-in via Connected and RoomUpdate.
+        <Typography variant="h6" component="h3">
+          Completed checks
         </Typography>
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-          }}
-        >
-          <MetricItem label="Known checks">
-            {hasTotals ? summary.locationCount.toLocaleString() : "Loading..."}
-          </MetricItem>
-          <MetricItem label="Known items">{hasTotals ? summary.itemCount.toLocaleString() : "Loading..."}</MetricItem>
-          <MetricItem label="Data package games">
-            {hasTotals ? `${summary.loadedGameCount}/${summary.requestedGameCount}` : "Loading..."}
-          </MetricItem>
-          <MetricItem label="Completed checks">Slot sign-in required</MetricItem>
-        </Box>
-        {hasTotals && summary.games.length > 0 ? (
-          <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
-            {summary.games.map((game) => (
-              <Chip
-                key={game.game}
-                size="small"
-                label={
-                  game.loaded
-                    ? `${game.game}: ${game.locationCount.toLocaleString()} checks`
-                    : `${game.game}: not loaded`
-                }
-                variant="outlined"
-              />
-            ))}
-          </Stack>
-        ) : null}
+        <LinearProgress
+          variant="determinate"
+          value={0}
+          aria-label="Completed checks progress"
+          aria-valuetext="Sign in to load completed checks"
+          sx={{ height: 8, borderRadius: 999 }}
+        />
+        <Typography variant="caption" color="text.secondary">
+          Sign in to load progress.
+        </Typography>
       </Stack>
     </Box>
   );
@@ -166,8 +107,6 @@ export function RoomInfoView({
   serverHost,
   serverPort,
   recentGameSignIns,
-  roomDataPackage,
-  cachedRoomProgressSummary,
   connectedSlotSignIns = [],
   onDeleteGameSignIn,
   slotConnectBusy = false,
@@ -225,18 +164,6 @@ export function RoomInfoView({
   const datapackageChecksumCount = room.datapackage_checksums
     ? Object.keys(room.datapackage_checksums).length
     : 0;
-  const hasFreshProgressSummary = Boolean(roomDataPackage?.data);
-  const progressSummary = useMemo(() => {
-    if (roomDataPackage?.data) return summarizeRoomDataPackage(room.games, roomDataPackage.data);
-    return cachedRoomProgressSummary ?? summarizeRoomDataPackage(room.games, null);
-  }, [room.games, roomDataPackage?.data, cachedRoomProgressSummary]);
-  const progressStatus =
-    hasFreshProgressSummary
-      ? (roomDataPackage?.status ?? "idle")
-      : cachedRoomProgressSummary
-        ? "cached"
-        : (roomDataPackage?.status ?? "idle");
-
   const permissionLabels: Record<string, string> = {
     release: "Release",
     collect: "Collect",
@@ -264,7 +191,7 @@ export function RoomInfoView({
       />
       <CardContent>
         <Stack spacing={2}>
-          <RoomTrackingOverview status={progressStatus} summary={progressSummary} />
+          <RoomTrackingOverview />
 
           <Stack spacing={1}>
             <Stack spacing={0.25}>
