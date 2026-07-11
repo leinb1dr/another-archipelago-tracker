@@ -25,7 +25,9 @@ import {
 import {
   type MultiSlotCredentials,
 } from "../connection/multiSlotSessions";
+import type { RoomDataPackageState } from "../connection/useRoomDataPackage";
 import type { RoomInfo } from "../protocol/roomInfo";
+import { summarizeRoomDataPackage, type RoomProgressSummary } from "../tracker/roomProgressSummary";
 import { RegisterSlotDialog, type SlotConnectedPayload } from "./RegisterSlotDialog";
 
 function formatVersion(v: { major: number; minor: number; build: number }): string {
@@ -43,6 +45,81 @@ function DetailItem({ label, children }: { label: string; children: ReactNode })
   );
 }
 
+function RoomTrackingOverview({
+  status,
+  summary,
+}: {
+  status: RoomDataPackageState["status"];
+  summary: RoomProgressSummary;
+}) {
+  const dataReady = status === "ready";
+  const statusLabel =
+    status === "ready"
+      ? "Data package loaded"
+      : status === "loading"
+        ? "Loading data package"
+        : "RoomInfo only";
+
+  return (
+    <Box
+      component="section"
+      aria-label="Room tracking"
+      sx={{
+        p: 2,
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 1,
+        bgcolor: "background.paper",
+      }}
+    >
+      <Stack spacing={1.5}>
+        <Stack direction="row" useFlexGap sx={{ alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+          <Typography variant="h6" component="h3">
+            Room tracking
+          </Typography>
+          <Chip size="small" label={statusLabel} color={dataReady ? "success" : "default"} variant="outlined" />
+        </Stack>
+        <Typography variant="body2" color="text.secondary">
+          Before game sign-in, the room socket can load RoomInfo and GetDataPackage. Completed and remaining
+          checks arrive after slot sign-in via Connected and RoomUpdate.
+        </Typography>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          <DetailItem label="Known checks">
+            {dataReady ? summary.locationCount.toLocaleString() : "Loading..."}
+          </DetailItem>
+          <DetailItem label="Known items">{dataReady ? summary.itemCount.toLocaleString() : "Loading..."}</DetailItem>
+          <DetailItem label="Data package games">
+            {dataReady ? `${summary.loadedGameCount}/${summary.requestedGameCount}` : "Loading..."}
+          </DetailItem>
+          <DetailItem label="Completed checks">Slot sign-in required</DetailItem>
+        </Box>
+        {dataReady && summary.games.length > 0 ? (
+          <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
+            {summary.games.map((game) => (
+              <Chip
+                key={game.game}
+                size="small"
+                label={
+                  game.loaded
+                    ? `${game.game}: ${game.locationCount.toLocaleString()} checks`
+                    : `${game.game}: not loaded`
+                }
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+}
+
 export type RoomInfoViewProps = {
   room: RoomInfo;
   reconnecting?: boolean;
@@ -51,6 +128,7 @@ export type RoomInfoViewProps = {
   serverHost: string;
   serverPort: string;
   recentGameSignIns: RecentGameSignIn[];
+  roomDataPackage?: RoomDataPackageState;
   connectedSlotSignIns?: Array<{
     game: string;
     slotName: string;
@@ -71,6 +149,7 @@ export function RoomInfoView({
   serverHost,
   serverPort,
   recentGameSignIns,
+  roomDataPackage,
   connectedSlotSignIns = [],
   onDeleteGameSignIn,
   slotConnectBusy = false,
@@ -128,6 +207,10 @@ export function RoomInfoView({
   const datapackageChecksumCount = room.datapackage_checksums
     ? Object.keys(room.datapackage_checksums).length
     : 0;
+  const progressSummary = useMemo(
+    () => summarizeRoomDataPackage(room.games, roomDataPackage?.data ?? null),
+    [room.games, roomDataPackage?.data],
+  );
 
   const permissionLabels: Record<string, string> = {
     release: "Release",
@@ -156,6 +239,8 @@ export function RoomInfoView({
       />
       <CardContent>
         <Stack spacing={2}>
+          <RoomTrackingOverview status={roomDataPackage?.status ?? "idle"} summary={progressSummary} />
+
           <Stack spacing={1}>
             <Stack spacing={0.25}>
               <Typography variant="h6" component="h3">

@@ -38,6 +38,7 @@ import {
   upsertRecentConnection,
   type RecentConnection,
 } from "./connection/recentConnectionsStorage";
+import { useRoomDataPackage } from "./connection/useRoomDataPackage";
 import {
   assignSlotConnectionColor,
   buildConnectionColorsByTeamSlot,
@@ -110,6 +111,7 @@ function App() {
     roomSocket,
     sessionHandshakeRaw,
   );
+  const roomDataPackage = useRoomDataPackage(roomSocket, room);
 
   const activeSlotEntry = slotSessions.find((entry) => entry.key === activeSlotKey) ?? null;
   const visibleSlotKey = activeSlotEntry?.key ?? slotSessions[0]?.key ?? null;
@@ -558,6 +560,7 @@ function App() {
                   serverHost={host}
                   serverPort={port}
                   recentGameSignIns={recentGameSignIns}
+                  roomDataPackage={roomDataPackage}
                   connectedSlotSignIns={connectedSlotSignIns}
                   slotConnectBusy={slotConnectBusy}
                   slotConnectError={slotConnectError}
@@ -626,6 +629,7 @@ function App() {
                   serverHost={host}
                   serverPort={port}
                   recentGameSignIns={recentGameSignIns}
+                  roomDataPackage={roomDataPackage}
                   connectedSlotSignIns={connectedSlotSignIns}
                   slotConnectBusy={slotConnectBusy}
                   slotConnectError={slotConnectError}

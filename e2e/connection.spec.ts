@@ -33,6 +33,15 @@ test.describe("connection", () => {
 
     await expect(page.getByRole("heading", { name: "Choose a game", level: 2 })).toBeVisible();
     await expect(page.getByRole("banner")).toContainText("127.0.0.1:53087");
+    const roomTracking = page.getByRole("region", { name: "Room tracking" });
+    await expect(roomTracking).toBeVisible();
+    await expect(roomTracking).toContainText("Data package loaded");
+    await expect(roomTracking).toContainText("Known checks");
+    await expect(roomTracking).toContainText("5");
+    await expect(roomTracking).toContainText("Data package games");
+    await expect(roomTracking).toContainText("2/2");
+    await expect(roomTracking).toContainText("Completed checks");
+    await expect(roomTracking).toContainText("Slot sign-in required");
     await expect(page.getByRole("heading", { name: "Games (2)", level: 3 })).toBeVisible();
     await expect(page.getByText("Pick Me Game").first()).toBeVisible();
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
