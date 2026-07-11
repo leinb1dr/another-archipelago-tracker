@@ -43,6 +43,7 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
             type=sha
+            type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
@@ -53,3 +54,62 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+    permissions:
+      packages: read
+
+    steps:
+      - name: Deploy archipelago-tracker to droplet
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -eu
+
+            IMAGE="ghcr.io/${{ github.repository }}:sha-${{ github.sha }}"
+            SERVICE="archipelago-tracker"
+            COMPOSE_FILE="$HOME/docker-compose.yaml"
+            TMP_FILE="$(mktemp)"
+
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            awk -v service="$SERVICE" -v image="$IMAGE" '
+              $0 == "  " service ":" {
+                in_service = 1
+                print
+                next
+              }
+              in_service && /^  [[:alnum:]_-]+:/ {
+                in_service = 0
+              }
+              in_service && /^[[:space:]]+image:/ {
+                sub(/image:.*/, "image: " image)
+                updated = 1
+              }
+              { print }
+              END {
+                if (!updated) {
+                  exit 42
+                }
+              }
+            ' "$COMPOSE_FILE" > "$TMP_FILE"
+
+            mv "$TMP_FILE" "$COMPOSE_FILE"
+
+            compose() {
+              if docker compose version >/dev/null 2>&1; then
+                docker compose -f "$COMPOSE_FILE" "$@"
+              else
+                docker-compose -f "$COMPOSE_FILE" "$@"
+              fi
+            }
+
+            compose pull "$SERVICE"
+            compose up -d --no-deps "$SERVICE"

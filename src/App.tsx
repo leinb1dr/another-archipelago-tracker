@@ -643,6 +643,7 @@ function App() {
       </Box>
 
       <Snackbar
+        key={snackbarMessage ?? "closed"}
         open={Boolean(snackbarMessage)}
         autoHideDuration={8000}
         onClose={() => setSnackbarMessage(null)}
