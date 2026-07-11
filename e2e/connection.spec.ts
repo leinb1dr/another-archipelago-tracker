@@ -33,6 +33,33 @@ test.describe("connection", () => {
 
     await expect(page.getByRole("heading", { name: "Choose a game", level: 2 })).toBeVisible();
     await expect(page.getByRole("banner")).toContainText("127.0.0.1:53087");
+    const roomTracking = page.getByRole("region", { name: "Room tracking" });
+    await expect(roomTracking).toBeVisible();
+    await expect(roomTracking).toContainText("Data package loaded");
+    await expect(roomTracking).toContainText("Known checks");
+    await expect(roomTracking).toContainText("5");
+    await expect(roomTracking).toContainText("Data package games");
+    await expect(roomTracking).toContainText("2/2");
+    await expect(roomTracking).toContainText("Completed checks");
+    await expect(roomTracking).toContainText("Slot sign-in required");
+    const cachedSummaries = await page.evaluate(() => {
+      const raw = localStorage.getItem("archipelago-tracker.roomProgressSummaries");
+      return raw ? (JSON.parse(raw) as unknown) : null;
+    });
+    expect(cachedSummaries).toEqual([
+      expect.objectContaining({
+        host: "127.0.0.1",
+        port: "53087",
+        seedName: "integration-ws-seed",
+        cachedAt: expect.any(Number),
+        summary: expect.objectContaining({
+          locationCount: 5,
+          itemCount: 3,
+          loadedGameCount: 2,
+          requestedGameCount: 2,
+        }),
+      }),
+    ]);
     await expect(page.getByRole("heading", { name: "Games (2)", level: 3 })).toBeVisible();
     await expect(page.getByText("Pick Me Game").first()).toBeVisible();
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
@@ -61,7 +88,7 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByText("Pick Me Game").first().click();
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
 
@@ -128,7 +155,7 @@ test.describe("connection", () => {
     await expect(
       page.getByRole("button", { name: "Log out saved sign-in Pick Me Game Dandoku" }),
     ).toBeVisible();
-    await page.getByText("Second Quest").first().click();
+    await page.getByRole("button", { name: "Second Quest" }).click();
     await page.getByLabel("Slot name").fill("Ranger");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByText("Connected as Ranger.")).toBeVisible();
@@ -150,7 +177,7 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByText("Pick Me Game").first().click();
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
