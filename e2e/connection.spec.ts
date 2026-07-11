@@ -31,10 +31,18 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose a game", level: 2 })).toBeVisible();
     await expect(page.getByRole("banner")).toContainText("127.0.0.1:53087");
-    await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Games (2)", level: 3 })).toBeVisible();
     await expect(page.getByText("Pick Me Game").first()).toBeVisible();
+    await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();
+    await expect(page.getByText("Server version")).toBeHidden();
+
+    const gamesHeadingBox = await page.getByRole("heading", { name: "Games (2)", level: 3 }).boundingBox();
+    const serverDetailsBox = await page.getByText("Server details").boundingBox();
+    expect(gamesHeadingBox).not.toBeNull();
+    expect(serverDetailsBox).not.toBeNull();
+    expect(gamesHeadingBox!.y).toBeLessThan(serverDetailsBox!.y);
 
     const messageLog = page.getByRole("region", { name: "Message log" });
     await expect(messageLog).toBeVisible();
@@ -114,6 +122,8 @@ test.describe("connection", () => {
     await page.getByRole("banner").getByRole("button", { name: "Add slot" }).click();
     await expect(page.getByRole("heading", { name: "Add slot", level: 2 })).toBeVisible();
     await expect(page.getByText("Seed: integration-ws-seed")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Games (2)", level: 3 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Previous sessions (1)", level: 3 })).toBeVisible();
     await expect(page.getByText("Connected (Dandoku)")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Log out saved sign-in Pick Me Game Dandoku" }),
@@ -151,7 +161,7 @@ test.describe("connection", () => {
     const dialogLogout = page.getByRole("dialog", { name: "Session" }).getByRole("button", { name: "Log out" });
     await dialogLogout.click();
     await expect(page.getByText("Logged out Dandoku.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose a game", level: 2 })).toBeVisible();
     await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toHaveCount(0);
 
     assertNoPageErrors();

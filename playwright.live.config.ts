@@ -6,7 +6,7 @@
  * Example:
  *   PLAYWRIGHT_BASE_URL=https://example.com npm run test:e2e:live
  *
- * Room WebSocket only (stops at Room info):
+ * Room WebSocket only (stops at game selection):
  *   E2E_ARCHIPELAGO_HOST=archipelago.gg E2E_ARCHIPELAGO_PORT=38281 npm run test:e2e:live
  *
  * Sign-in (Connect packet + tracker shell) — add game name and slot name (exact game string from room):

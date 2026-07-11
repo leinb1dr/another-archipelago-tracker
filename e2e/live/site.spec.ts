@@ -23,7 +23,7 @@ test.describe("live site", () => {
     assertNoPageErrors();
   });
 
-  /** WebSocket connect only — stops at Room info (no slot / Connect packet). */
+  /** WebSocket connect only — stops at game selection (no slot / Connect packet). */
   test("connects to configured Archipelago server and shows room info", async ({ page }) => {
     test.skip(
       !hasLiveServerCoords,
@@ -36,7 +36,7 @@ test.describe("live site", () => {
     await page.getByLabel("Port").fill(liveArchipelagoPort!);
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Choose a game", level: 2 })).toBeVisible({
       timeout: 60_000,
     });
     assertNoPageErrors();
@@ -55,7 +55,7 @@ test.describe("live site", () => {
     await page.getByLabel("Port").fill(liveArchipelagoPort!);
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await expect(page.getByRole("heading", { name: "Room info", level: 2 })).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Choose a game", level: 2 })).toBeVisible({
       timeout: 60_000,
     });
 
