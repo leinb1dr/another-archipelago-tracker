@@ -38,6 +38,7 @@ test.describe("connection", () => {
 
     const messageLog = page.getByRole("region", { name: "Message log" });
     await expect(messageLog).toBeVisible();
+    await messageLog.getByRole("button", { name: "Expand message log" }).click();
     await expect(messageLog).toContainText("RoomInfo");
     await expect(messageLog).toContainText("integration-ws-seed");
     await expect(messageLog).toContainText("Pick Me Game");
@@ -78,7 +79,7 @@ test.describe("connection", () => {
 
     await page.getByRole("button", { name: "Scout" }).click();
     await expect(page.getByText(/^Scout:/)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Progression")).toBeVisible();
+    await expect(page.getByText("Progression").first()).toBeVisible();
 
     await page.getByRole("tab", { name: "Hints" }).click();
     await expect(page.getByRole("heading", { name: "Hints", level: 2 })).toBeVisible();
