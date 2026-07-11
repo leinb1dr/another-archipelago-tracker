@@ -271,7 +271,7 @@ export function RoomInfoView({
                         >
                           <ListItemText
                             primary={<Typography variant="body2">{entry.game}</Typography>}
-                            secondaryTypographyProps={{ component: "div" }}
+                            slotProps={{ secondary: { component: "div" } }}
                             secondary={
                               <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
                                 <Typography component="span" variant="caption" color="text.secondary">
