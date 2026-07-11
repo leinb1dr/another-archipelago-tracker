@@ -25,6 +25,10 @@ When implementing networking, prefer **typed** packet shapes in dedicated module
 
 Use **Material UI** with the existing `ThemeProvider` and patterns in `src/`. Keep spacing, typography, and components consistent with Material Design unless the product direction changes.
 
+## Testing expectations
+
+Every source file should have unit test coverage, and every user-facing feature should have a Playwright test that exercises the feature end-to-end.
+
 ## Third-party libraries
 
 The ecosystem lists [archipelago.js](https://www.npmjs.com/package/archipelago.js) (JavaScript/TypeScript) as a community client for the protocol. Evaluate it when adding a real connection versus a small custom WebSocket layer; either approach is acceptable if the behavior matches the official protocol.
