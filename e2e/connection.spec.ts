@@ -127,7 +127,7 @@ test.describe("connection", () => {
 
     await activeSlotCombobox.click();
     await page.getByRole("option", { name: "Dandoku · Pick Me Game" }).click();
-    await expect(page.getByText(/Dandoku · Pick Me Game/)).toBeVisible();
+    await expect(activeSlotCombobox).toContainText("Dandoku · Pick Me Game");
     await expect(activeSlotCombobox).toContainText("Dandoku");
 
     assertNoPageErrors();
