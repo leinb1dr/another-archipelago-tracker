@@ -70,7 +70,7 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByText("Pick Me Game").first().click();
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
 
@@ -137,7 +137,7 @@ test.describe("connection", () => {
     await expect(
       page.getByRole("button", { name: "Log out saved sign-in Pick Me Game Dandoku" }),
     ).toBeVisible();
-    await page.getByText("Second Quest").first().click();
+    await page.getByRole("button", { name: "Second Quest" }).click();
     await page.getByLabel("Slot name").fill("Ranger");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByText("Connected as Ranger.")).toBeVisible();
@@ -159,7 +159,7 @@ test.describe("connection", () => {
     await page.getByLabel("Port").fill("53087");
     await page.getByRole("button", { name: "Connect" }).click();
 
-    await page.getByText("Pick Me Game").first().click();
+    await page.getByRole("button", { name: "Pick Me Game" }).click();
     await page.getByLabel("Slot name").fill("Dandoku");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("heading", { name: "Overall status", level: 2 })).toBeVisible();
