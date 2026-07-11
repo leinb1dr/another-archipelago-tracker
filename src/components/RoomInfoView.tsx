@@ -1,4 +1,7 @@
 import Alert from "@mui/material/Alert";
+import Accordion from "@mui/material/Accordion";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import AccordionSummary from "@mui/material/AccordionSummary";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -13,7 +16,8 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useCallback, useMemo, useState } from "react";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   filterGameSignInsForServer,
   type RecentGameSignIn,
@@ -26,6 +30,17 @@ import { RegisterSlotDialog, type SlotConnectedPayload } from "./RegisterSlotDia
 
 function formatVersion(v: { major: number; minor: number; build: number }): string {
   return `${v.major}.${v.minor}.${v.build}`;
+}
+
+function DetailItem({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="subtitle2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="body2">{children}</Typography>
+    </Stack>
+  );
 }
 
 export type RoomInfoViewProps = {
@@ -110,6 +125,9 @@ export function RoomInfoView({
     typeof room.time === "number" && Number.isFinite(room.time)
       ? new Date(room.time * 1000).toLocaleString()
       : "—";
+  const datapackageChecksumCount = room.datapackage_checksums
+    ? Object.keys(room.datapackage_checksums).length
+    : 0;
 
   const permissionLabels: Record<string, string> = {
     release: "Release",
@@ -132,76 +150,58 @@ export function RoomInfoView({
         />
       ) : null}
       <CardHeader
-        title={compact ? "Add slot" : "Room info"}
-        subheader={compact ? undefined : `Seed: ${room.seed_name}`}
+        title={compact ? "Add slot" : "Choose a game"}
+        subheader={compact ? undefined : "Pick the game that matches your Archipelago slot."}
         slotProps={{ title: { component: "h2" } }}
       />
       <CardContent>
         <Stack spacing={2}>
-          {!compact ? (
-            <>
-              <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
-                <Chip size="small" label={room.password ? "Password required" : "No password"} variant="outlined" />
-                {room.tags.map((tag) => (
-                  <Chip key={tag} size="small" label={tag} />
-                ))}
-              </Stack>
-
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Server version
-                </Typography>
-                <Typography variant="body2">{formatVersion(room.version)}</Typography>
-              </Stack>
-
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Generator version
-                </Typography>
-                <Typography variant="body2">{formatVersion(room.generator_version)}</Typography>
-              </Stack>
-
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Hint cost / check points
-                </Typography>
-                <Typography variant="body2">
-                  {room.hint_cost}% · {room.location_check_points} pt(s) per check
-                </Typography>
-              </Stack>
-
-              <Stack spacing={0.5}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Server time
-                </Typography>
-                <Typography variant="body2">{serverTime}</Typography>
-              </Stack>
-
-              <Divider />
-
-              <Typography variant="subtitle2" color="text.secondary">
-                Permissions
+          <Stack spacing={1}>
+            <Stack spacing={0.25}>
+              <Typography variant="h6" component="h3">
+                Games ({room.games.length})
               </Typography>
-              <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
-                {Object.entries(room.permissions).map(([key, value]) => (
-                  <Chip
-                    key={key}
-                    size="small"
-                    label={`${permissionLabels[key] ?? key}: ${String(value)}`}
-                    variant="outlined"
-                  />
+              <Typography variant="body2" color="text.secondary">
+                Choose a game to sign in with your slot name.
+              </Typography>
+            </Stack>
+            <Box
+              sx={{
+                maxHeight: 280,
+                overflow: "auto",
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 1,
+              }}
+            >
+              <List dense disablePadding>
+                {room.games.map((name, index) => (
+                  <ListItemButton
+                    key={`${index}-${name}`}
+                    disabled={reconnecting || Boolean(quickSignInKey)}
+                    onClick={() => {
+                      setSelectedGame(name);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <ListItemText primary={<Typography variant="body2">{name}</Typography>} />
+                  </ListItemButton>
                 ))}
-              </Stack>
-
-              <Divider />
-            </>
-          ) : null}
+              </List>
+            </Box>
+          </Stack>
 
           {savedForThisServer.length > 0 ? (
             <>
-              <Typography variant="subtitle2" color="text.secondary">
-                Previously signed-in games ({savedForThisServer.length})
-              </Typography>
+              <Divider />
+              <Stack spacing={0.25}>
+                <Typography variant="h6" component="h3">
+                  Previous sessions ({savedForThisServer.length})
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Reuse a saved game and slot name for this server.
+                </Typography>
+              </Stack>
               {quickSignInError ? (
                 <Alert severity="error" role="alert" onClose={() => setQuickSignInError(null)}>
                   {quickSignInError}
@@ -301,45 +301,83 @@ export function RoomInfoView({
                   ))}
                 </List>
               </Box>
-              <Divider />
             </>
           ) : null}
 
-          <Typography variant="subtitle2" color="text.secondary">
-            Games ({room.games.length}) — click a game to sign in
-          </Typography>
-          <Box
-            sx={{
-              maxHeight: 280,
-              overflow: "auto",
-              border: 1,
-              borderColor: "divider",
-              borderRadius: 1,
-            }}
-          >
-            <List dense disablePadding>
-              {room.games.map((name, index) => (
-                <ListItemButton
-                  key={`${index}-${name}`}
-                  disabled={reconnecting || Boolean(quickSignInKey)}
-                  onClick={() => {
-                    setSelectedGame(name);
-                    setDialogOpen(true);
-                  }}
-                >
-                  <ListItemText primary={<Typography variant="body2">{name}</Typography>} />
-                </ListItemButton>
-              ))}
-            </List>
-          </Box>
+          {!compact ? (
+            <Accordion
+              variant="outlined"
+              disableGutters
+              sx={{
+                "&:before": { display: "none" },
+                borderRadius: 1,
+              }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="room-details-content"
+                id="room-details-header"
+              >
+                <Stack spacing={0.25}>
+                  <Typography variant="subtitle2">Server details</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Seed: {room.seed_name}
+                  </Typography>
+                </Stack>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack spacing={2}>
+                  <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
+                    <Chip
+                      size="small"
+                      label={room.password ? "Password required" : "No password"}
+                      variant="outlined"
+                    />
+                    {room.tags.map((tag) => (
+                      <Chip key={tag} size="small" label={tag} />
+                    ))}
+                  </Stack>
 
-          {!compact && room.datapackage_checksums && Object.keys(room.datapackage_checksums).length > 0 ? (
-            <>
-              <Typography variant="caption" color="text.secondary">
-                Data package checksums: {Object.keys(room.datapackage_checksums).length}{" "}
-                {Object.keys(room.datapackage_checksums).length === 1 ? "entry" : "entries"}
-              </Typography>
-            </>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 2,
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                    }}
+                  >
+                    <DetailItem label="Server version">{formatVersion(room.version)}</DetailItem>
+                    <DetailItem label="Generator version">{formatVersion(room.generator_version)}</DetailItem>
+                    <DetailItem label="Hint cost / check points">
+                      {room.hint_cost}% · {room.location_check_points} pt(s) per check
+                    </DetailItem>
+                    <DetailItem label="Server time">{serverTime}</DetailItem>
+                  </Box>
+
+                  <Stack spacing={1}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Permissions
+                    </Typography>
+                    <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
+                      {Object.entries(room.permissions).map(([key, value]) => (
+                        <Chip
+                          key={key}
+                          size="small"
+                          label={`${permissionLabels[key] ?? key}: ${String(value)}`}
+                          variant="outlined"
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
+
+                  {datapackageChecksumCount > 0 ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Data package checksums: {datapackageChecksumCount}{" "}
+                      {datapackageChecksumCount === 1 ? "entry" : "entries"}
+                    </Typography>
+                  ) : null}
+                </Stack>
+              </AccordionDetails>
+            </Accordion>
           ) : null}
         </Stack>
       </CardContent>
