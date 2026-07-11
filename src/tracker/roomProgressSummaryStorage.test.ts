@@ -40,7 +40,7 @@ describe("roomProgressSummaryStorage", () => {
   it("saves and loads a summary by normalized host, port, and seed", () => {
     mockLocalStorage();
     saveCachedRoomProgressSummary({
-      host: " HTTP://Example.COM/ ",
+      host: " http://example.com/room ",
       port: " 38281 ",
       seedName: "seed-a",
       summary,
