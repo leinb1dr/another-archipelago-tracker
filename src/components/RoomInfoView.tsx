@@ -45,6 +45,19 @@ function DetailItem({ label, children }: { label: string; children: ReactNode })
   );
 }
 
+function MetricItem({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="subtitle2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="h6" component="p" sx={{ lineHeight: 1.2 }}>
+        {children}
+      </Typography>
+    </Stack>
+  );
+}
+
 function RoomTrackingOverview({
   status,
   summary,
@@ -90,14 +103,14 @@ function RoomTrackingOverview({
             gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
           }}
         >
-          <DetailItem label="Known checks">
+          <MetricItem label="Known checks">
             {dataReady ? summary.locationCount.toLocaleString() : "Loading..."}
-          </DetailItem>
-          <DetailItem label="Known items">{dataReady ? summary.itemCount.toLocaleString() : "Loading..."}</DetailItem>
-          <DetailItem label="Data package games">
+          </MetricItem>
+          <MetricItem label="Known items">{dataReady ? summary.itemCount.toLocaleString() : "Loading..."}</MetricItem>
+          <MetricItem label="Data package games">
             {dataReady ? `${summary.loadedGameCount}/${summary.requestedGameCount}` : "Loading..."}
-          </DetailItem>
-          <DetailItem label="Completed checks">Slot sign-in required</DetailItem>
+          </MetricItem>
+          <MetricItem label="Completed checks">Slot sign-in required</MetricItem>
         </Box>
         {dataReady && summary.games.length > 0 ? (
           <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
