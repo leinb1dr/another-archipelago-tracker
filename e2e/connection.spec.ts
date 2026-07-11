@@ -42,6 +42,24 @@ test.describe("connection", () => {
     await expect(roomTracking).toContainText("2/2");
     await expect(roomTracking).toContainText("Completed checks");
     await expect(roomTracking).toContainText("Slot sign-in required");
+    const cachedSummaries = await page.evaluate(() => {
+      const raw = localStorage.getItem("archipelago-tracker.roomProgressSummaries");
+      return raw ? (JSON.parse(raw) as unknown) : null;
+    });
+    expect(cachedSummaries).toEqual([
+      expect.objectContaining({
+        host: "127.0.0.1",
+        port: "53087",
+        seedName: "integration-ws-seed",
+        cachedAt: expect.any(Number),
+        summary: expect.objectContaining({
+          locationCount: 5,
+          itemCount: 3,
+          loadedGameCount: 2,
+          requestedGameCount: 2,
+        }),
+      }),
+    ]);
     await expect(page.getByRole("heading", { name: "Games (2)", level: 3 })).toBeVisible();
     await expect(page.getByText("Pick Me Game").first()).toBeVisible();
     await expect(page.getByText("Seed: integration-ws-seed")).toBeVisible();

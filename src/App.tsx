@@ -54,6 +54,11 @@ import { SessionStatusDialog } from "./components/SessionStatusDialog";
 import { TrackerShell } from "./components/TrackerShell";
 import type { SlotSession } from "./protocol/connectPackets";
 import type { RoomInfo } from "./protocol/roomInfo";
+import { summarizeRoomDataPackage, type RoomProgressSummary } from "./tracker/roomProgressSummary";
+import {
+  loadCachedRoomProgressSummary,
+  saveCachedRoomProgressSummary,
+} from "./tracker/roomProgressSummaryStorage";
 
 function validateHost(host: string): string {
   if (!normalizeHost(host)) return "Host is required.";
@@ -106,6 +111,7 @@ function App() {
   const [recentGameSignIns, setRecentGameSignIns] = useState<RecentGameSignIn[]>([]);
   const [sessionHandshakeRaw, setSessionHandshakeRaw] = useState<string | null>(null);
   const [connectionColors, setConnectionColors] = useState(loadSlotConnectionColors);
+  const [cachedRoomProgressSummary, setCachedRoomProgressSummary] = useState<RoomProgressSummary | null>(null);
 
   const { entries: messageLogEntries, clear: clearMessageLog } = useInboundMessageLog(
     roomSocket,
@@ -144,6 +150,26 @@ function App() {
     setRecentConnections(loadRecentConnections());
     setRecentGameSignIns(loadRecentGameSignIns());
   }, []);
+
+  useEffect(() => {
+    if (!room) {
+      setCachedRoomProgressSummary(null);
+      return;
+    }
+    setCachedRoomProgressSummary(loadCachedRoomProgressSummary(host, port, room.seed_name)?.summary ?? null);
+  }, [host, port, room?.seed_name]);
+
+  useEffect(() => {
+    if (!room || roomDataPackage.status !== "ready" || !roomDataPackage.data) return;
+    const summary = summarizeRoomDataPackage(room.games, roomDataPackage.data);
+    saveCachedRoomProgressSummary({
+      host,
+      port,
+      seedName: room.seed_name,
+      summary,
+    });
+    setCachedRoomProgressSummary(summary);
+  }, [host, port, room, roomDataPackage.status, roomDataPackage.data]);
 
   useEffect(() => {
     return () => {
@@ -561,6 +587,7 @@ function App() {
                   serverPort={port}
                   recentGameSignIns={recentGameSignIns}
                   roomDataPackage={roomDataPackage}
+                  cachedRoomProgressSummary={cachedRoomProgressSummary}
                   connectedSlotSignIns={connectedSlotSignIns}
                   slotConnectBusy={slotConnectBusy}
                   slotConnectError={slotConnectError}
@@ -630,6 +657,7 @@ function App() {
                   serverPort={port}
                   recentGameSignIns={recentGameSignIns}
                   roomDataPackage={roomDataPackage}
+                  cachedRoomProgressSummary={cachedRoomProgressSummary}
                   connectedSlotSignIns={connectedSlotSignIns}
                   slotConnectBusy={slotConnectBusy}
                   slotConnectError={slotConnectError}

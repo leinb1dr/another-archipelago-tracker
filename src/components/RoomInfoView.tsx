@@ -62,16 +62,19 @@ function RoomTrackingOverview({
   status,
   summary,
 }: {
-  status: RoomDataPackageState["status"];
+  status: RoomDataPackageState["status"] | "cached";
   summary: RoomProgressSummary;
 }) {
-  const dataReady = status === "ready";
+  const hasTotals = status === "ready" || status === "cached";
   const statusLabel =
     status === "ready"
       ? "Data package loaded"
+      : status === "cached"
+        ? "Cached totals"
       : status === "loading"
         ? "Loading data package"
         : "RoomInfo only";
+  const statusColor = status === "ready" ? "success" : status === "cached" ? "info" : "default";
 
   return (
     <Box
@@ -90,11 +93,11 @@ function RoomTrackingOverview({
           <Typography variant="h6" component="h3">
             Room tracking
           </Typography>
-          <Chip size="small" label={statusLabel} color={dataReady ? "success" : "default"} variant="outlined" />
+          <Chip size="small" label={statusLabel} color={statusColor} variant="outlined" />
         </Stack>
         <Typography variant="body2" color="text.secondary">
-          Before game sign-in, the room socket can load RoomInfo and GetDataPackage. Completed and remaining
-          checks arrive after slot sign-in via Connected and RoomUpdate.
+          Before game sign-in, the room socket can load RoomInfo and GetDataPackage. Totals are cached per seed;
+          completed and remaining checks arrive after slot sign-in via Connected and RoomUpdate.
         </Typography>
         <Box
           sx={{
@@ -104,15 +107,15 @@ function RoomTrackingOverview({
           }}
         >
           <MetricItem label="Known checks">
-            {dataReady ? summary.locationCount.toLocaleString() : "Loading..."}
+            {hasTotals ? summary.locationCount.toLocaleString() : "Loading..."}
           </MetricItem>
-          <MetricItem label="Known items">{dataReady ? summary.itemCount.toLocaleString() : "Loading..."}</MetricItem>
+          <MetricItem label="Known items">{hasTotals ? summary.itemCount.toLocaleString() : "Loading..."}</MetricItem>
           <MetricItem label="Data package games">
-            {dataReady ? `${summary.loadedGameCount}/${summary.requestedGameCount}` : "Loading..."}
+            {hasTotals ? `${summary.loadedGameCount}/${summary.requestedGameCount}` : "Loading..."}
           </MetricItem>
           <MetricItem label="Completed checks">Slot sign-in required</MetricItem>
         </Box>
-        {dataReady && summary.games.length > 0 ? (
+        {hasTotals && summary.games.length > 0 ? (
           <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
             {summary.games.map((game) => (
               <Chip
@@ -142,6 +145,7 @@ export type RoomInfoViewProps = {
   serverPort: string;
   recentGameSignIns: RecentGameSignIn[];
   roomDataPackage?: RoomDataPackageState;
+  cachedRoomProgressSummary?: RoomProgressSummary | null;
   connectedSlotSignIns?: Array<{
     game: string;
     slotName: string;
@@ -163,6 +167,7 @@ export function RoomInfoView({
   serverPort,
   recentGameSignIns,
   roomDataPackage,
+  cachedRoomProgressSummary,
   connectedSlotSignIns = [],
   onDeleteGameSignIn,
   slotConnectBusy = false,
@@ -220,10 +225,17 @@ export function RoomInfoView({
   const datapackageChecksumCount = room.datapackage_checksums
     ? Object.keys(room.datapackage_checksums).length
     : 0;
-  const progressSummary = useMemo(
-    () => summarizeRoomDataPackage(room.games, roomDataPackage?.data ?? null),
-    [room.games, roomDataPackage?.data],
-  );
+  const hasFreshProgressSummary = Boolean(roomDataPackage?.data);
+  const progressSummary = useMemo(() => {
+    if (roomDataPackage?.data) return summarizeRoomDataPackage(room.games, roomDataPackage.data);
+    return cachedRoomProgressSummary ?? summarizeRoomDataPackage(room.games, null);
+  }, [room.games, roomDataPackage?.data, cachedRoomProgressSummary]);
+  const progressStatus =
+    hasFreshProgressSummary
+      ? (roomDataPackage?.status ?? "idle")
+      : cachedRoomProgressSummary
+        ? "cached"
+        : (roomDataPackage?.status ?? "idle");
 
   const permissionLabels: Record<string, string> = {
     release: "Release",
@@ -252,7 +264,7 @@ export function RoomInfoView({
       />
       <CardContent>
         <Stack spacing={2}>
-          <RoomTrackingOverview status={roomDataPackage?.status ?? "idle"} summary={progressSummary} />
+          <RoomTrackingOverview status={progressStatus} summary={progressSummary} />
 
           <Stack spacing={1}>
             <Stack spacing={0.25}>
