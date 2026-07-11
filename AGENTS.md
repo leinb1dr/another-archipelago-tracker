@@ -36,3 +36,14 @@ The ecosystem lists [archipelago.js](https://www.npmjs.com/package/archipelago.j
 After **`RoomInfo`**, the socket **stays open**. Slot sign-in sends **`Connect`** (see [`src/protocol/connectPackets.ts`](src/protocol/connectPackets.ts), [`src/connection/sendConnect.ts`](src/connection/sendConnect.ts)) and waits for **`Connected`** or **`ConnectionRefused`** on the same WebSocket. Success is shown in a snackbar (“Connected as …”). The app closes the socket on unmount.
 
 Playwright starts [`e2e/fixtures/roominfo-ws-server.mjs`](e2e/fixtures/roominfo-ws-server.mjs) alongside Vite: it sends **`RoomInfo`** on connect and replies to **`Connect`** with a minimal **`Connected`**. [`e2e/connection.spec.ts`](e2e/connection.spec.ts) covers room load and slot registration. A separate test uses an unused port to assert the initial connection error state.
+
+## Cursor Cloud specific instructions
+
+Frontend-only app (no backend/database). Standard scripts live in `package.json`; see `README.md` for the full list.
+
+- **Run/dev:** `npm run dev` serves on `http://localhost:5173`. Vite binds to `localhost` only (no `--host`), so `curl http://127.0.0.1:5173` returns nothing — use `localhost`.
+- **Lint/typecheck:** there is no ESLint config or `lint` script. Type checking runs as part of `npm run build` (`tsc && vite build`).
+- **Unit tests:** `npm test` (Vitest, `src/**/*.test.ts`) — fast, no browser needed.
+- **E2E:** `npm run test:e2e` (Playwright) auto-starts the Vite dev server and the `ws` fixture ([`e2e/fixtures/roominfo-ws-server.mjs`](e2e/fixtures/roominfo-ws-server.mjs)) on port 53087; no manual server startup needed. Requires the Chromium browser (`npx playwright install chromium`).
+- **Known pre-existing failures:** 3 specs in [`e2e/connection.spec.ts`](e2e/connection.spec.ts) fail on `main` (the `main` branch CI is also red). They are deterministic test/code mismatches (message-log panel collapsed by default so its region has no text; `getByText('Progression')` strict-mode matches 2 chips; logout snackbar text) — not an environment problem. The WebSocket connection and sign-in flow themselves work end-to-end.
+- **Manual hello-world:** connect with Host `127.0.0.1` / Port `53087` to the local fixture, click a game (e.g. `Pick Me Game`), sign in a slot name, and the tracker shows the overall status.
