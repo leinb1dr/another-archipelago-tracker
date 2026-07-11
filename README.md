@@ -8,6 +8,7 @@ Web client for connecting to an [Archipelago](https://github.com/ArchipelagoMW/A
 - [React](https://react.dev/)
 - [Vite](https://vite.dev/)
 - [Material UI](https://mui.com/) (Material Design)
+- [Vitest](https://vitest.dev/) and [Playwright](https://playwright.dev/) for automated tests
 
 ## Protocol
 
@@ -31,6 +32,8 @@ npm run dev
 - `npm run preview` — serve the production build locally.
 
 ## Testing
+
+All source files should have unit test coverage. All user-facing features should have a Playwright test that exercises the feature end-to-end.
 
 End-to-end tests use [Playwright](https://playwright.dev/). Install browsers once (Chromium is enough for the default project):
 
