@@ -3,6 +3,7 @@ import Chip from "@mui/material/Chip";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import CardHeader from "@mui/material/CardHeader";
+import LinearProgress from "@mui/material/LinearProgress";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
@@ -47,6 +48,9 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
   const maps = mapsByGame[slotSession.game];
   const pct = completionRatio(location);
   const pctLabel = pct === null ? "—" : `${Math.round(pct * 1000) / 10}%`;
+  const progressValue = pct === null ? 0 : pct * 100;
+  const checkedCount = location.checkedLocationIds.length;
+  const remainingCount = location.missingLocationIds.length;
 
   const mySlot = tracker.slot;
 
@@ -180,7 +184,7 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
   };
 
   return (
-    <Card variant="outlined">
+    <Card component="section" aria-label="Overall status" variant="outlined">
       <CardHeader title="Overall status" slotProps={{ title: { component: "h2" } }} />
       <CardContent>
         <Stack spacing={2}>
@@ -192,12 +196,21 @@ export function OverallStatusView({ room, slotSession, tracker }: OverallStatusV
           </Stack>
           <Stack spacing={0.5}>
             <Typography variant="subtitle2" color="text.secondary">
-              Completion
+              Completed checks
             </Typography>
-            <Typography variant="body1">{pctLabel}</Typography>
+            <LinearProgress
+              variant="determinate"
+              value={progressValue}
+              aria-label="Completed checks progress"
+              aria-valuetext={
+                pct === null
+                  ? "No checks available"
+                  : `${checkedCount} of ${checkedCount + remainingCount} checks completed`
+              }
+              sx={{ height: 8, borderRadius: 999 }}
+            />
             <Typography variant="caption" color="text.secondary">
-              {location.checkedLocationIds.length} checked · {location.missingLocationIds.length}{" "}
-              remaining
+              {pctLabel} · {checkedCount} checked · {remainingCount} remaining
             </Typography>
           </Stack>
           <Stack spacing={0.5}>
